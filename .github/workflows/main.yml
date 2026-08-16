@@ -41,6 +41,7 @@ jobs:
             unzip \
             git \
             flex \
+            gperf \
             python3 \
             wget
 
