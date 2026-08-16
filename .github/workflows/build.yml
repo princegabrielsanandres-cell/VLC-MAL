@@ -34,7 +34,7 @@ jobs:
 
       - name: Build VLC-MAL
         run: |
-          ./gradlew :application:app:assembleDebug \
+          ./gradle :application:app:assembleDebug \
             --no-daemon \
             --stacktrace
 
