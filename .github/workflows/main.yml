@@ -23,21 +23,13 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK and NDK
-        run: |
-          sdkmanager "platforms;android-36" \
-                     "build-tools;36.0.0" \
-                     "platform-tools" \
-                     "cmake;3.22.1" \
-                     "ndk;21.4.7075529"
-
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             automake \
-            autopoint \
             ant \
+            autopoint \
             cmake \
             build-essential \
             libtool-bin \
@@ -50,27 +42,50 @@ jobs:
             git \
             flex \
             python3 \
-            wget \
-            curl
+            wget
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install Android components
+        run: |
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-36"
+          sdkmanager "build-tools;35.0.0"
+          yes | sdkmanager --licenses || true
+
+      - name: Find Android SDK and NDK
+        run: |
+          echo "ANDROID_SDK=$ANDROID_HOME" >> "$GITHUB_ENV"
+
+          NDK_DIR=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+
+          if [ -z "$NDK_DIR" ]; then
+            echo "No Android NDK found"
+            exit 1
+          fi
+
+          echo "ANDROID_NDK=$NDK_DIR" >> "$GITHUB_ENV"
 
       - name: Build VLC-MAL
-        env:
-          ANDROID_SDK: ${{ env.ANDROID_HOME }}
-          ANDROID_NDK: ${{ env.ANDROID_HOME }}/ndk/21.4.7075529
         run: |
           chmod +x buildsystem/compile.sh
-          ./buildsystem/compile.sh -a arm64
+
+          ./buildsystem/compile.sh \
+            -a arm64-v8a
 
       - name: Find APK
-        if: always()
         run: |
+          echo "Searching for APK files..."
           find . -type f -name "*.apk" -print
 
       - name: Upload APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: VLC-MAL-debug
           path: |
-            **/*.apk
+            **/build/outputs/apk/**/*.apk
+            **/build/outputs/apk/*.apk
           if-no-files-found: error
