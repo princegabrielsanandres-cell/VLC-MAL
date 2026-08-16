@@ -91,7 +91,15 @@ jobs:
           grep -Ein -B5 -A10 \
             'error:|Error [0-9]+|No such file|Permission denied|cannot|failed|FAILED' \
             build.log | tail -300 || true
-
+      - name: Inspect VLC appdata after build
+        if: always()
+        run: |
+          echo "========== APPDATA FILES =========="
+          find . -iname '*appdata*' -o -name 'org.videolan.vlc.appdata.xml' || true
+          echo "========== VLC SHARE DIRECTORY =========="
+          ls -la libvlcjni/vlc/share 2>/dev/null || true
+          echo "========== GENERATED APPDATA REFERENCES =========="
+          grep -R "org.videolan.vlc.appdata.xml" -n libvlcjni/vlc 2>/dev/null | head -50 || true
       - name: Find APK
         run: |
           echo "Searching for APK files..."
