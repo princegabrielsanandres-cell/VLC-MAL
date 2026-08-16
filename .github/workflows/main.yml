@@ -55,17 +55,15 @@ jobs:
           sdkmanager "platform-tools"
           sdkmanager "platforms;android-36"
           sdkmanager "build-tools;35.0.0"
+          sdkmanager "ndk;21.4.7075529"
           yes | sdkmanager --licenses || true
 
       - name: Configure Android environment
         run: |
           echo "ANDROID_SDK=$ANDROID_HOME" >> "$GITHUB_ENV"
 
-          NDK_DIR=$(find "$ANDROID_HOME/ndk" \
-            -mindepth 1 \
-            -maxdepth 1 \
-            -type d | sort -V | tail -1)
-
+          NDK_DIR="$ANDROID_HOME/ndk/21.4.7075529"
+          
           if [ -z "$NDK_DIR" ]; then
             echo "No Android NDK found"
             exit 1
