@@ -49,7 +49,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
+  
       - name: Install Android components
         run: |
           sdkmanager "platform-tools"
@@ -57,7 +57,7 @@ jobs:
           sdkmanager "build-tools;35.0.0"
           sdkmanager "ndk;27.2.12479018"
           yes | sdkmanager --licenses || true
-
+          
             - name: Configure Android environment
                run: |
           echo "ANDROID_SDK=$ANDROID_HOME" >> "$GITHUB_ENV"
