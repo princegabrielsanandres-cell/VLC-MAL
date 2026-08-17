@@ -56,7 +56,10 @@ jobs:
           sdkmanager "platforms;android-36"
           sdkmanager "build-tools;35.0.0"
           sdkmanager "ndk;27.2.12479018"
-          yes | sdkmanager --licenses || true
+
+      - name: Accept Android licenses
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
 
       - name: Configure Android environment
         run: |
@@ -76,15 +79,15 @@ jobs:
           chmod +x buildsystem/compile.sh
           ./buildsystem/compile.sh -a arm64-v8a --init
 
-            - name: Generate VLC appdata file
-               run: |
+      - name: Generate VLC appdata file
+        run: |
           cd libvlcjni/vlc
 
           if [ -f share/org.videolan.vlc.appdata.xml.in.in ]; then
             cp share/org.videolan.vlc.appdata.xml.in.in share/org.videolan.vlc.appdata.xml
           elif [ -f share/org.videolan.vlc.appdata.xml.in ]; then
             cp share/org.videolan.vlc.appdata.xml.in share/org.videolan.vlc.appdata.xml
-          elif [ ! -f share/org.videolan.vlc.appdata.xml ]; then
+          else
             echo "No VLC appdata template found"
             find share -maxdepth 2 -iname '*appdata*' -print || true
             exit 1
@@ -103,23 +106,14 @@ jobs:
         if: failure()
         run: |
           echo "========== POSSIBLE ERRORS =========="
-          grep -Ein -B5 -A10 \
-            'error:|Error [0-9]+|No such file|Permission denied|cannot|failed|FAILED' \
-            build.log | tail -300 || true
-
-      - name: Inspect VLC appdata after build
-        if: always()
-        run: |
-          echo "========== APPDATA FILES =========="
-          find . -iname '*appdata*' -o -name 'org.videolan.vlc.appdata.xml' || true
-
-          echo "========== VLC SHARE DIRECTORY =========="
-          ls -la libvlcjni/vlc/share 2>/dev/null || true
-
-          echo "========== GENERATED APPDATA REFERENCES =========="
-          grep -R "org.videolan.vlc.appdata.xml" -n libvlcjni/vlc 2>/dev/null | head -50 || true
+          if [ -f build.log ]; then
+            grep -Ein -B5 -A10 \
+              'error:|Error [0-9]+|No such file|Permission denied|cannot|failed|FAILED' \
+              build.log | tail -300 || true
+          fi
 
       - name: Find APK
+        if: always()
         run: |
           echo "Searching for APK files..."
           find . -type f -name "*.apk" -print
