@@ -86,8 +86,7 @@ jobs:
         run: |
           chmod +x buildsystem/compile.sh
           set -o pipefail
-          ./buildsystem/compile.sh -a arm64-v8a 2>&1 | tee build.log
-
+          ./buildsystem/compile.sh -a arm64-v8a -b 2>&1 | tee build.log
       - name: Show build errors
         if: failure()
         run: |
