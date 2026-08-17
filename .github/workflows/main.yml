@@ -76,6 +76,12 @@ jobs:
           find . -iname '*appdata*' -o -name 'org.videolan.vlc.appdata.xml' || true
           echo "Checking VLC build configuration..."
           grep -R "appdata" -n libvlcjni 2>/dev/null | head -50 || true
+
+      - name: Prepare VLC appdata
+        run: |
+          mkdir -p libvlcjni/vlc/share
+          touch libvlcjni/vlc/share/org.videolan.vlc.appdata.xml
+  
       - name: Build VLC-MAL
         run: |
           chmod +x buildsystem/compile.sh
