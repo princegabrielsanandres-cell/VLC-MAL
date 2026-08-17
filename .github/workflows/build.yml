@@ -11,41 +11,117 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout
+      - name: Checkout VLC-MAL
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Set up Java
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-       
-      - name: Install NDK
-        run: |
-            sdkmanager "ndk;27.2.12479018"
 
-      - name: Install Android SDK packages
+      - name: Install build dependencies
         run: |
-          sdkmanager "platforms;android-36" \
-                     "build-tools;36.0.0"
-            - name: Generate VLC appdata file
-               run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            automake \
+            ant \
+            autopoint \
+            cmake \
+            build-essential \
+            libtool-bin \
+            patch \
+            pkg-config \
+            protobuf-compiler \
+            ragel \
+            subversion \
+            unzip \
+            git \
+            flex \
+            gperf \
+            python3 \
+            wget
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install Android components
+        run: |
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-36"
+          sdkmanager "build-tools;35.0.0"
+          sdkmanager "ndk;27.2.12479018"
+          yes | sdkmanager --licenses || true
+
+      - name: Configure Android environment
+        run: |
+          echo "ANDROID_SDK=$ANDROID_HOME" >> "$GITHUB_ENV"
+
+          NDK_DIR="$ANDROID_HOME/ndk/27.2.12479018"
+
+          if [ ! -d "$NDK_DIR" ]; then
+            echo "No Android NDK found"
+            exit 1
+          fi
+
+          echo "ANDROID_NDK=$NDK_DIR" >> "$GITHUB_ENV"
+
+      - name: Generate VLC appdata file
+        run: |
           cd libvlcjni/vlc
           cp share/org.videolan.vlc.appdata.xml.in share/org.videolan.vlc.appdata.xml
           test -f share/org.videolan.vlc.appdata.xml
           echo "Appdata file created successfully"
-          
+
+      - name: Check VLC appdata
+        run: |
+          echo "Checking repository for appdata files..."
+          find . -iname '*appdata*' -o -name 'org.videolan.vlc.appdata.xml' || true
+
+          echo "Checking VLC build configuration..."
+          grep -R "appdata" -n libvlcjni 2>/dev/null | head -50 || true
+
       - name: Build VLC-MAL
         run: |
-          gradle :application:app:assembleDebug \
-            --no-daemon \
-            --stacktrace
+          chmod +x buildsystem/compile.sh
+          set -o pipefail
+          ./buildsystem/compile.sh -a arm64-v8a 2>&1 | tee build.log
+
+      - name: Show build errors
+        if: failure()
+        run: |
+          echo "========== POSSIBLE ERRORS =========="
+          grep -Ein -B5 -A10 \
+            'error:|Error [0-9]+|No such file|Permission denied|cannot|failed|FAILED' \
+            build.log | tail -300 || true
+
+      - name: Inspect VLC appdata after build
+        if: always()
+        run: |
+          echo "========== APPDATA FILES =========="
+          find . -iname '*appdata*' -o -name 'org.videolan.vlc.appdata.xml' || true
+
+          echo "========== VLC SHARE DIRECTORY =========="
+          ls -la libvlcjni/vlc/share 2>/dev/null || true
+
+          echo "========== GENERATED APPDATA REFERENCES =========="
+          grep -R "org.videolan.vlc.appdata.xml" -n libvlcjni/vlc 2>/dev/null | head -50 || true
+
+      - name: Find APK
+        run: |
+          echo "Searching for APK files..."
+          find . -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: VLC-MAL-debug
-          path: application/app/build/outputs/apk/**/*.apk
+          path: |
+            **/build/outputs/apk/**/*.apk
+            **/build/outputs/apk/*.apk
+          if-no-files-found: error
