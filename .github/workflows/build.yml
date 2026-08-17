@@ -31,10 +31,12 @@ jobs:
         run: |
           sdkmanager "platforms;android-36" \
                      "build-tools;36.0.0"
-      - name: Generate VLC appdata file
-        run: |
+            - name: Generate VLC appdata file
+               run: |
           cd libvlcjni/vlc
           cp share/org.videolan.vlc.appdata.xml.in share/org.videolan.vlc.appdata.xml
+          test -f share/org.videolan.vlc.appdata.xml
+          echo "Appdata file created successfully"
           
       - name: Build VLC-MAL
         run: |
