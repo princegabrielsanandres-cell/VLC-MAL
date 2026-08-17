@@ -71,20 +71,25 @@ jobs:
 
           echo "ANDROID_NDK=$NDK_DIR" >> "$GITHUB_ENV"
 
+      - name: Prepare VLC source
+        run: |
+          chmod +x buildsystem/compile.sh
+          ./buildsystem/compile.sh -a arm64-v8a --init
+
       - name: Generate VLC appdata file
         run: |
           cd libvlcjni/vlc
-          cp share/org.videolan.vlc.appdata.xml.in share/org.videolan.vlc.appdata.xml
+
+          if [ -f share/org.videolan.vlc.appdata.xml.in ]; then
+            cp share/org.videolan.vlc.appdata.xml.in share/org.videolan.vlc.appdata.xml
+          elif [ ! -f share/org.videolan.vlc.appdata.xml ]; then
+            echo "No VLC appdata template found"
+            find share -maxdepth 2 -iname '*appdata*' -print || true
+            exit 1
+          fi
+
           test -f share/org.videolan.vlc.appdata.xml
           echo "Appdata file created successfully"
-
-      - name: Check VLC appdata
-        run: |
-          echo "Checking repository for appdata files..."
-          find . -iname '*appdata*' -o -name 'org.videolan.vlc.appdata.xml' || true
-
-          echo "Checking VLC build configuration..."
-          grep -R "appdata" -n libvlcjni 2>/dev/null | head -50 || true
 
       - name: Build VLC-MAL
         run: |
