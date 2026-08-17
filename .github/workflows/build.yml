@@ -76,11 +76,13 @@ jobs:
           chmod +x buildsystem/compile.sh
           ./buildsystem/compile.sh -a arm64-v8a --init
 
-      - name: Generate VLC appdata file
-        run: |
+            - name: Generate VLC appdata file
+               run: |
           cd libvlcjni/vlc
 
-          if [ -f share/org.videolan.vlc.appdata.xml.in ]; then
+          if [ -f share/org.videolan.vlc.appdata.xml.in.in ]; then
+            cp share/org.videolan.vlc.appdata.xml.in.in share/org.videolan.vlc.appdata.xml
+          elif [ -f share/org.videolan.vlc.appdata.xml.in ]; then
             cp share/org.videolan.vlc.appdata.xml.in share/org.videolan.vlc.appdata.xml
           elif [ ! -f share/org.videolan.vlc.appdata.xml ]; then
             echo "No VLC appdata template found"
