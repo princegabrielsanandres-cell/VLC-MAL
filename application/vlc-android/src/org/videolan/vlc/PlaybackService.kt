@@ -1110,10 +1110,14 @@ class PlaybackService : MediaBrowserServiceCompat(), LifecycleOwner, CoroutineSc
 
     fun onNewPlayback() = mediaSession.setSessionActivity(sessionPendingIntent)
 
-    fun onPlaylistLoaded() {
-        notifyTrackChanged()
-        updateMediaQueue()
+     fun onPlaylistLoaded() {
+    notifyTrackChanged()
+    updateMediaQueue()
+
+    playlistManager.getCurrentMedia()?.let { media ->
+        MalSync.onMediaStarted(media.title)
     }
+     }
 
     @MainThread
     fun pause() = playlistManager.pause()
