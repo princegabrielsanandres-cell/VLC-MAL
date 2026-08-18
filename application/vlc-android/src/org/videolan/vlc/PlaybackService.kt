@@ -325,7 +325,9 @@ class PlaybackService : MediaBrowserServiceCompat(), LifecycleOwner, CoroutineSc
 
     private val mediaPlayerListener = MediaPlayer.EventListener { event ->
         when (event.type) {
-            MediaPlayer.Event.Playing -> {
+            MediaPlayer.Event.Playing -> {playlistManager.getCurrentMedia()?.let { media ->
+    MalSync.onMediaStarted(media.title)
+            }
                 if (BuildConfig.DEBUG) Log.i(TAG, "MediaPlayer.Event.Playing")
                 executeUpdate(true)
                 lastTime = getTime()
