@@ -325,7 +325,12 @@ class PlaybackService : MediaBrowserServiceCompat(), LifecycleOwner, CoroutineSc
 
     private val mediaPlayerListener = MediaPlayer.EventListener { event ->
         when (event.type) {
-            MediaPlayer.Event.Playing -> {playlistManager.getCurrentMedia()?.let { media ->
+            MediaPlayer.Event.Playing -> {Toast.makeText(
+    this@PlaybackService,
+    "MAL SYNC TEST: PLAYING EVENT FIRED",
+    Toast.LENGTH_LONG
+).show()
+                playlistManager.getCurrentMedia()?.let { media ->
     MalSync.onMediaStarted(media.title)
             }
                 Log.i(TAG, "MAL SYNC TEST: PLAYING EVENT FIRED")
