@@ -220,11 +220,11 @@ private fun handleMalCallback(uri: Uri?) {
     val code = uri?.getQueryParameter("code")
 
     if (code == null) {
-        UiTools.snackerMessage(this, "MAL login failed")
+        UiTools.snacker(this, "MAL login failed")
         return
     }
 
-    UiTools.snackerMessage(this, "MAL login callback received")
+    UiTools.snacker(this, "MAL login callback received")
 }
     override fun onResume() {
         super.onResume()
