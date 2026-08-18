@@ -23,6 +23,7 @@ package org.videolan.vlc.gui
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.KeyEvent
@@ -112,6 +113,7 @@ class MainActivity : ContentActivity(),
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+            handleMalCallback(intent.data)
         Util.checkCpuCompatibility(this)
         /*** Start initializing the UI  */
         setContentView(R.layout.main)
@@ -205,7 +207,25 @@ class MainActivity : ContentActivity(),
         backPressedCallback.isEnabled = AndroidUtil.isNougatOrLater && isInMultiWindowMode
     }
 
+override fun onNewIntent(intent: Intent?) {
+    super.onNewIntent(intent)
 
+    if (intent?.data?.scheme == "malvlcsync" &&
+        intent.data?.host == "oauth"
+    ) {
+        handleMalCallback(intent.data!!)
+    }
+}
+private fun handleMalCallback(uri: Uri?) {
+    val code = uri?.getQueryParameter("code")
+
+    if (code == null) {
+        UiTools.snackerMessage(this, "MAL login failed")
+        return
+    }
+
+    UiTools.snackerMessage(this, "MAL login callback received")
+}
     override fun onResume() {
         super.onResume()
         //Only the partial permission is granted for Android 11+
