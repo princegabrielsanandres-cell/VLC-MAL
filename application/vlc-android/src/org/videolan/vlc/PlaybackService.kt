@@ -328,7 +328,7 @@ class PlaybackService : MediaBrowserServiceCompat(), LifecycleOwner, CoroutineSc
             MediaPlayer.Event.Playing -> {playlistManager.getCurrentMedia()?.let { media ->
     MalSync.onMediaStarted(media.title)
             }
-                if (BuildConfig.DEBUG) Log.i(TAG, "MediaPlayer.Event.Playing")
+                Log.i(TAG, "MAL SYNC TEST: PLAYING EVENT FIRED")
                 executeUpdate(true)
                 lastTime = getTime()
                 audioFocusHelper.changeAudioFocus(true)
