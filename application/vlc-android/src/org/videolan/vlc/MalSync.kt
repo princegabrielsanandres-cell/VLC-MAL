@@ -50,8 +50,8 @@ object MalSync {
         val parsed = parse(fileName) ?: return
 
         println(
-            "MAL SYNC: ${parsed.title} " +
-            "S${parsed.season ?: "?"}E${parsed.episode}"
-        )
-    }
-}
+    "MAL SYNC DETECTED: " +
+    "title=${parsed.title}, " +
+    "season=${parsed.season}, " +
+    "episode=${parsed.episode}"
+)
