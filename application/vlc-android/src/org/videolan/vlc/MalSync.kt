@@ -46,12 +46,14 @@ object MalSync {
         return null
     }
 
-    fun onMediaStarted(fileName: String) {
+        fun onMediaStarted(fileName: String) {
         val parsed = parse(fileName) ?: return
 
         println(
-    "MAL SYNC DETECTED: " +
-    "title=${parsed.title}, " +
-    "season=${parsed.season}, " +
-    "episode=${parsed.episode}"
-)
+            "MAL SYNC DETECTED: " +
+            "title=${parsed.title}, " +
+            "season=${parsed.season}, " +
+            "episode=${parsed.episode}"
+        )
+    }
+}
