@@ -331,7 +331,11 @@ class PlaybackService : MediaBrowserServiceCompat(), LifecycleOwner, CoroutineSc
     Toast.LENGTH_LONG
 ).show()
                 playlistManager.getCurrentMedia()?.let { media ->
-    MalSync.onMediaStarted(media.title)
+    Toast.makeText(
+    this@PlaybackService,
+    MalSync.onMediaStarted(media.title),
+    Toast.LENGTH_LONG
+).show()
             }
                 Log.i(TAG, "MAL SYNC TEST: PLAYING EVENT FIRED")
                 executeUpdate(true)
