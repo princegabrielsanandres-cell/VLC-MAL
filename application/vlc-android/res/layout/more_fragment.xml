@@ -18,10 +18,7 @@
   ~ along with this program; if not, write to the Free Software
   ~ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
   ~ ***************************************************************************
-  ~
-  ~
   -->
-
 
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -33,13 +30,67 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
+        <!-- MyAnimeList -->
+        <androidx.cardview.widget.CardView
+                android:id="@+id/malLoginCard"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="16dp"
+                app:cardCornerRadius="8dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp">
+
+                <TextView
+                        android:id="@+id/malLoginTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:text="MyAnimeList"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                <TextView
+                        android:id="@+id/malLoginStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Not logged in"
+                        android:textSize="14sp"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/malLoginTitle" />
+
+                <Button
+                        android:id="@+id/malLoginButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Log in with MyAnimeList"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toBottomOf="@id/malLoginStatus" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+        </androidx.cardview.widget.CardView>
+
+        <!-- Settings -->
         <org.videolan.vlc.gui.view.AutofitButton
                 android:id="@+id/settingsButton"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="16dp"
                 android:layout_marginEnd="8dp"
                 android:ellipsize="middle"
                 android:singleLine="true"
@@ -50,16 +101,17 @@
                 app:layout_constraintHorizontal_bias="0.5"
                 app:layout_constraintHorizontal_chainStyle="packed"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/malLoginCard"
                 app:layout_constraintWidth_max="200dp" />
 
+        <!-- About -->
         <org.videolan.vlc.gui.view.AutofitButton
                 android:id="@+id/aboutButton"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton.Icon"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:layout_marginTop="24dp"
+                android:layout_marginTop="16dp"
                 android:layout_marginEnd="16dp"
                 android:ellipsize="middle"
                 android:singleLine="true"
@@ -69,9 +121,10 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintHorizontal_bias="0.5"
                 app:layout_constraintStart_toEndOf="@+id/settingsButton"
-                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/malLoginCard"
                 app:layout_constraintWidth_max="200dp" />
 
+        <!-- Donations -->
         <androidx.cardview.widget.CardView
                 android:id="@+id/donationsButton"
                 android:layout_width="0dp"
@@ -131,10 +184,12 @@
                         app:layout_constraintHorizontal_bias="0.5"
                         app:layout_constraintStart_toEndOf="@+id/imageView13"
                         app:layout_constraintTop_toBottomOf="@+id/textView17" />
+
             </androidx.constraintlayout.widget.ConstraintLayout>
 
         </androidx.cardview.widget.CardView>
 
+        <!-- Streams -->
         <org.videolan.vlc.gui.view.TitleListView
                 android:id="@+id/streams_entry"
                 android:layout_width="0dp"
@@ -145,6 +200,7 @@
                 app:layout_constraintTop_toBottomOf="@+id/donationsButton"
                 app:title="@string/streams" />
 
+        <!-- History -->
         <org.videolan.vlc.gui.view.TitleListView
                 android:id="@+id/history_entry"
                 android:layout_width="0dp"
