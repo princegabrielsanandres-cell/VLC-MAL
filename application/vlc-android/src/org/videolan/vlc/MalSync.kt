@@ -12,13 +12,13 @@ object MalSync {
 
     private val patterns = listOf(
         Pattern.compile(
-            "(?i)^(.*?)[ ._-]*S(\\d{1,2})E(\\d{1,4}).*\\.(mkv|mp4|webm)$"
+            "(?i)^(.*?)[ ._-]*S(\\d{1,2})E(\\d{1,4}).*$"
         ),
         Pattern.compile(
-            "(?i)^(.*?)[ ._-]+(?:EP?|Episode)[ ._-]?(\\d{1,4}).*\\.(mkv|mp4|webm)$"
+            "(?i)^(.*?)[ ._-]+(?:EP?|Episode)[ ._-]?(\\d{1,4}).*$"
         ),
         Pattern.compile(
-            "(?i)^(.*?)[ ._-]+(\\d{1,4}).*\\.(mkv|mp4|webm)$"
+            "(?i)^(.*?)[ ._-]+(\\d{1,4}).*$"
         )
     )
 
