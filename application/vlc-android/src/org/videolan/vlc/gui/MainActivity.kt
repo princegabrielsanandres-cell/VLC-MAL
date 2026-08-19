@@ -224,6 +224,14 @@ private fun handleMalCallback(uri: Uri?) {
         return
     }
 
+    val codeVerifier = Settings.getInstance(this)
+        .getString("mal_code_verifier", null)
+
+    if (codeVerifier == null) {
+        UiTools.snacker(this, "MAL login failed: missing verifier")
+        return
+    }
+
     UiTools.snacker(this, "MAL login callback received")
 }
     override fun onResume() {
