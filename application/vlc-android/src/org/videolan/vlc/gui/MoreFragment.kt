@@ -24,6 +24,7 @@
 
 package org.videolan.vlc.gui
 
+import java.security.SecureRandom
 import android.net.Uri
 import android.content.Intent
 import android.os.Bundle
@@ -165,6 +166,19 @@ class MoreFragment : BaseFragment(), IRefreshable, IHistory, IDialogManager,
 val malLoginButton = view.findViewById<Button>(R.id.malLoginButton)
 
 malLoginButton.setOnClickListener {
+    val verifierBytes = ByteArray(32)
+    SecureRandom().nextBytes(verifierBytes)
+
+    val codeVerifier = android.util.Base64.encodeToString(
+        verifierBytes,
+        android.util.Base64.URL_SAFE or
+            android.util.Base64.NO_WRAP or
+            android.util.Base64.NO_PADDING
+    )
+
+    Settings.getInstance(requireActivity())
+        .putSingle("mal_code_verifier", codeVerifier)
+
     val uri = Uri.Builder()
         .scheme("https")
         .authority("myanimelist.net")
@@ -172,6 +186,8 @@ malLoginButton.setOnClickListener {
         .appendQueryParameter("response_type", "code")
         .appendQueryParameter("client_id", MAL_CLIENT_ID)
         .appendQueryParameter("redirect_uri", "malvlcsync://oauth")
+        .appendQueryParameter("code_challenge", codeVerifier)
+        .appendQueryParameter("code_challenge_method", "plain")
         .build()
 
     startActivity(Intent(Intent.ACTION_VIEW, uri))
