@@ -160,7 +160,14 @@ class MoreFragment : BaseFragment(), IRefreshable, IHistory, IDialogManager,
             i.putExtra("fragment", SecondaryActivity.STREAMS)
             requireActivity().startActivityForResult(i, SecondaryActivity.ACTIVITY_RESULT_SECONDARY)
         }
+val malLoginButton = view.findViewById<Button>(R.id.malLoginButton)
 
+malLoginButton.setOnClickListener {
+val intent = Intent(Intent.ACTION_VIEW).apply {
+    data = Uri.parse("https://myanimelist.net/v1/oauth2/authorize")
+}
+startActivity(intent)
+}
         settingsButton.setOnClickListener {
             requireActivity().startActivityForResult(Intent(requireActivity(), PreferencesActivity::class.java), ACTIVITY_RESULT_PREFERENCES)
         }
