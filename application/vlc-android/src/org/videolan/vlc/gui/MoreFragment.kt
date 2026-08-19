@@ -69,6 +69,7 @@ import org.videolan.vlc.viewmodels.StreamsModel
 
 private const val TAG = "VLC/HistoryFragment"
 private const val KEY_SELECTION = "key_selection"
+private const val MAL_CLIENT_ID = "077b29cb8603174af0038a333e8f415f"
 
 class MoreFragment : BaseFragment(), IRefreshable, IHistory, IDialogManager,
         IStreamsFragmentDelegate by StreamsFragmentDelegate() {
@@ -163,10 +164,16 @@ class MoreFragment : BaseFragment(), IRefreshable, IHistory, IDialogManager,
 val malLoginButton = view.findViewById<Button>(R.id.malLoginButton)
 
 malLoginButton.setOnClickListener {
-val intent = Intent(Intent.ACTION_VIEW).apply {
-    data = Uri.parse("https://myanimelist.net/v1/oauth2/authorize")
-}
-startActivity(intent)
+    val uri = Uri.Builder()
+        .scheme("https")
+        .authority("myanimelist.net")
+        .path("v1/oauth2/authorize")
+        .appendQueryParameter("response_type", "code")
+        .appendQueryParameter("client_id", MAL_CLIENT_ID)
+        .appendQueryParameter("redirect_uri", "malvlcsync://oauth")
+        .build()
+
+    startActivity(Intent(Intent.ACTION_VIEW, uri))
 }
         settingsButton.setOnClickListener {
             requireActivity().startActivityForResult(Intent(requireActivity(), PreferencesActivity::class.java), ACTIVITY_RESULT_PREFERENCES)
