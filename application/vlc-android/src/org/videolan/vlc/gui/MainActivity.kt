@@ -20,6 +20,7 @@
 
 package org.videolan.vlc.gui
 
+import org.json.JSONObject
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
@@ -235,8 +236,8 @@ private fun handleMalCallback(uri: Uri?) {
     lifecycleScope.launch(Dispatchers.IO) {
         try {
             val url = URL("https://myanimelist.net/v1/oauth2/token")
-            val connection = url.openConnection() as HttpURLConnection
-
+            val connection: HttpURLConnection =
+    url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.doOutput = true
             connection.setRequestProperty(
