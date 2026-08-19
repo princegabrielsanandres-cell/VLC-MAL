@@ -232,7 +232,79 @@ private fun handleMalCallback(uri: Uri?) {
         return
     }
 
-    UiTools.snacker(this, "MAL login callback received")
+    lifecycleScope.launch(Dispatchers.IO) {
+        try {
+            val url = URL("https://myanimelist.net/v1/oauth2/token")
+            val connection = url.openConnection() as HttpURLConnection
+
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty(
+                "Content-Type",
+                "application/x-www-form-urlencoded"
+            )
+
+            val body = listOf(
+                "client_id" to MAL_CLIENT_ID,
+                "code" to code,
+                "code_verifier" to codeVerifier,
+                "grant_type" to "authorization_code",
+                "redirect_uri" to "malvlcsync://oauth"
+            ).joinToString("&") { (key, value) ->
+                "${URLEncoder.encode(key, "UTF-8")}=${URLEncoder.encode(value, "UTF-8")}"
+            }
+
+            connection.outputStream.use { output ->
+                output.write(body.toByteArray(Charsets.UTF_8))
+            }
+
+            val responseCode = connection.responseCode
+
+            val response = if (responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            }
+
+            connection.disconnect()
+
+            if (responseCode !in 200..299) {
+                withContext(Dispatchers.Main) {
+                    UiTools.snacker(
+                        this@MainActivity,
+                        "MAL login failed: $responseCode"
+                    )
+                }
+                return@launch
+            }
+
+            val json = JSONObject(response)
+            val accessToken = json.getString("access_token")
+            val refreshToken = json.optString("refresh_token", "")
+
+            Settings.getInstance(this@MainActivity).apply {
+                putSingle("mal_access_token", accessToken)
+                putSingle("mal_refresh_token", refreshToken)
+                putSingle("mal_logged_in", true)
+                putSingle("mal_code_verifier", "")
+            }
+
+            withContext(Dispatchers.Main) {
+                UiTools.snacker(
+                    this@MainActivity,
+                    "Logged in to MyAnimeList!"
+                )
+            }
+
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                UiTools.snacker(
+                    this@MainActivity,
+                    "MAL login failed: ${e.message}"
+                )
+            }
+        }
+    }
 }
     override fun onResume() {
         super.onResume()
