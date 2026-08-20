@@ -20,6 +20,9 @@
 
 package org.videolan.vlc.gui
 
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import org.json.JSONObject
 import android.annotation.SuppressLint
 import android.app.AlertDialog
@@ -239,7 +242,7 @@ private fun handleMalCallback(uri: Uri?) {
         try {
             val url = URL("https://myanimelist.net/v1/oauth2/token")
 
-            connection = url.openConnection() as HttpURLConnection
+            connection = url.openConnection() as java.net.HttpURLConnection
             connection.requestMethod = "POST"
             connection.doOutput = true
             connection.setRequestProperty(
@@ -286,7 +289,7 @@ private fun handleMalCallback(uri: Uri?) {
                 return@launch
             }
 
-            val json = JSONObject(response)
+            val json = org.json.JSONObject(response)
             val accessToken = json.optString("access_token", "")
             val refreshToken = json.optString("refresh_token", "")
 
