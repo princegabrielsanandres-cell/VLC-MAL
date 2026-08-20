@@ -235,21 +235,31 @@ updateMalLoginUi()
         }
 
     private fun updateMalLoginUi() {
-        val settings = Settings.getInstance(requireActivity())
-        val loggedIn = settings.getBoolean("mal_logged_in", false)
+    val settings = Settings.getInstance(requireActivity())
+    val loggedIn = settings.getBoolean("mal_logged_in", false)
 
-        val status = view?.findViewById<TextView>(R.id.malLoginStatus)
-            ?: return
-        val button = view?.findViewById<Button>(R.id.malLoginButton)
-            ?: return
+    val status = view?.findViewById<TextView>(R.id.malLoginStatus)
+        ?: return
+    val button = view?.findViewById<Button>(R.id.malLoginButton)
+        ?: return
+    val profile = view?.findViewById<View>(R.id.malProfileContainer)
+        ?: return
+    val username = view?.findViewById<TextView>(R.id.malUsername)
+        ?: return
 
-        if (loggedIn) {
-            status.text = "Logged in"
-            button.visibility = View.GONE
-        } else {
-            status.text = "Not logged in"
-            button.visibility = View.VISIBLE
-        }
+    if (loggedIn) {
+        status.visibility = View.GONE
+        button.visibility = View.GONE
+        profile.visibility = View.VISIBLE
+
+        // Temporary username.
+        // We'll replace this with the real MAL username next.
+        username.text = "MyAnimeList User"
+    } else {
+        status.visibility = View.VISIBLE
+        button.visibility = View.VISIBLE
+        profile.visibility = View.GONE
+    }
     }
 
     private fun manageDonationVisibility() {
