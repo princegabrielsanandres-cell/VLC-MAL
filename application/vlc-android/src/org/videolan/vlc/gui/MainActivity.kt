@@ -234,10 +234,12 @@ private fun handleMalCallback(uri: Uri?) {
     }
 
     lifecycleScope.launch(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+
         try {
             val url = URL("https://myanimelist.net/v1/oauth2/token")
-            val connection: HttpURLConnection =
-    url.openConnection() as HttpURLConnection
+
+            connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.doOutput = true
             connection.setRequestProperty(
@@ -252,7 +254,9 @@ private fun handleMalCallback(uri: Uri?) {
                 "grant_type" to "authorization_code",
                 "redirect_uri" to "malvlcsync://oauth"
             ).joinToString("&") { (key, value) ->
-                "${URLEncoder.encode(key, "UTF-8")}=${URLEncoder.encode(value, "UTF-8")}"
+                "${URLEncoder.encode(key, "UTF-8")}=${
+                    URLEncoder.encode(value, "UTF-8")
+                }"
             }
 
             connection.outputStream.use { output ->
@@ -261,13 +265,16 @@ private fun handleMalCallback(uri: Uri?) {
 
             val responseCode = connection.responseCode
 
-            val response = if (responseCode in 200..299) {
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            val response = try {
+                connection.getInputStream()
+                    .bufferedReader()
+                    .use { reader -> reader.readText() }
+            } catch (_: Exception) {
+                connection.getErrorStream()
+                    ?.bufferedReader()
+                    ?.use { reader -> reader.readText() }
+                    ?: ""
             }
-
-            connection.disconnect()
 
             if (responseCode !in 200..299) {
                 withContext(Dispatchers.Main) {
@@ -280,8 +287,18 @@ private fun handleMalCallback(uri: Uri?) {
             }
 
             val json = JSONObject(response)
-            val accessToken = json.getString("access_token")
+            val accessToken = json.optString("access_token", "")
             val refreshToken = json.optString("refresh_token", "")
+
+            if (accessToken.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    UiTools.snacker(
+                        this@MainActivity,
+                        "MAL login failed: no access token"
+                    )
+                }
+                return@launch
+            }
 
             Settings.getInstance(this@MainActivity).apply {
                 putSingle("mal_access_token", accessToken)
@@ -304,6 +321,8 @@ private fun handleMalCallback(uri: Uri?) {
                     "MAL login failed: ${e.message}"
                 )
             }
+        } finally {
+            connection?.disconnect()
         }
     }
 }
