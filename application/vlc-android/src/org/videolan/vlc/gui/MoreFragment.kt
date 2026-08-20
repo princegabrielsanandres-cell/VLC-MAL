@@ -30,6 +30,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.*
 import android.widget.Button
+import android.widget.TextView
 import androidx.appcompat.view.ActionMode
 import androidx.cardview.widget.CardView
 import androidx.lifecycle.ViewModelProvider
@@ -192,6 +193,7 @@ malLoginButton.setOnClickListener {
 
     startActivity(Intent(Intent.ACTION_VIEW, uri))
 }
+updateMalLoginUi()
         settingsButton.setOnClickListener {
             requireActivity().startActivityForResult(Intent(requireActivity(), PreferencesActivity::class.java), ACTIVITY_RESULT_PREFERENCES)
         }
@@ -203,7 +205,24 @@ malLoginButton.setOnClickListener {
 //        VLCBilling.getInstance(requireActivity().application).addStatusListener {
 //            manageDonationVisibility()
 //        }
-        manageDonationVisibility()
+        private fun updateMalLoginUi() {
+    val settings = Settings.getInstance(requireActivity())
+    val loggedIn = settings.getBoolean("mal_logged_in", false)
+
+    val status = view?.findViewById<TextView>(R.id.malLoginStatus)
+        ?: return
+    val button = view?.findViewById<Button>(R.id.malLoginButton)
+        ?: return
+
+    if (loggedIn) {
+        status.text = "Logged in"
+        button.visibility = View.GONE
+    } else {
+        status.text = "Not logged in"
+        button.visibility = View.VISIBLE
+    }
+        }
+            manageDonationVisibility()
         donationsButton.setOnClickListener {
             requireActivity().showDonations()
         }
@@ -237,9 +256,10 @@ malLoginButton.setOnClickListener {
     }
 
     override fun onStart() {
-        super.onStart()
-        viewModel.refresh()
-        (activity as? ContentActivity)?.setTabLayoutVisibility(false)
+    super.onStart()
+    updateMalLoginUi()
+    viewModel.refresh()
+    (activity as? ContentActivity)?.setTabLayoutVisibility(false)
     }
 
 
