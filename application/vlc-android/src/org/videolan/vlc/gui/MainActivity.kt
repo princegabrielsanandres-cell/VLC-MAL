@@ -117,7 +117,11 @@ class MainActivity : ContentActivity(),
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-            handleMalCallback(intent.data)
+            if (intent?.data?.scheme == "malvlcsync" &&
+    intent.data?.host == "oauth"
+) {
+    handleMalCallback(intent.data)
+            }
         Util.checkCpuCompatibility(this)
         /*** Start initializing the UI  */
         setContentView(R.layout.main)
