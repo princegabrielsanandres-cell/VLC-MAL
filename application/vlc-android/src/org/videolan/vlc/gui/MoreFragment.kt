@@ -71,7 +71,7 @@ import org.videolan.vlc.viewmodels.StreamsModel
 
 private const val TAG = "VLC/HistoryFragment"
 private const val KEY_SELECTION = "key_selection"
-private const val MAL_CLIENT_ID = "077b29cb8603174af0038a333e8f415f"
+const val MAL_CLIENT_ID = "077b29cb8603174af0038a333e8f415f"
 
 class MoreFragment : BaseFragment(), IRefreshable, IHistory, IDialogManager,
         IStreamsFragmentDelegate by StreamsFragmentDelegate() {
