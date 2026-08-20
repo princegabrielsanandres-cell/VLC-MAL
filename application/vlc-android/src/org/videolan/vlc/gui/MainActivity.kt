@@ -242,7 +242,7 @@ private fun handleMalCallback(uri: Uri?) {
         try {
             val url = URL("https://myanimelist.net/v1/oauth2/token")
 
-            connection = url.openConnection() as java.net.HttpURLConnection
+            connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.doOutput = true
             connection.setRequestProperty(
