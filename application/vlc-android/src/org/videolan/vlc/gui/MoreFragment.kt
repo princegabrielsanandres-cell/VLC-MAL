@@ -205,23 +205,7 @@ updateMalLoginUi()
 //        VLCBilling.getInstance(requireActivity().application).addStatusListener {
 //            manageDonationVisibility()
 //        }
-        private fun updateMalLoginUi() {
-    val settings = Settings.getInstance(requireActivity())
-    val loggedIn = settings.getBoolean("mal_logged_in", false)
 
-    val status = view?.findViewById<TextView>(R.id.malLoginStatus)
-        ?: return
-    val button = view?.findViewById<Button>(R.id.malLoginButton)
-        ?: return
-
-    if (loggedIn) {
-        status.text = "Logged in"
-        button.visibility = View.GONE
-    } else {
-        status.text = "Not logged in"
-        button.visibility = View.VISIBLE
-    }
-        }
             manageDonationVisibility()
         donationsButton.setOnClickListener {
             requireActivity().showDonations()
@@ -247,6 +231,24 @@ updateMalLoginUi()
             val media = bundle.parcelable<MediaWrapper>(RENAME_DIALOG_MEDIA) ?: return@setFragmentResultListener
             val name = bundle.getString(RENAME_DIALOG_NEW_NAME) ?: return@setFragmentResultListener
             renameStream(media, name)
+        }
+        }
+
+    private fun updateMalLoginUi() {
+        val settings = Settings.getInstance(requireActivity())
+        val loggedIn = settings.getBoolean("mal_logged_in", false)
+
+        val status = view?.findViewById<TextView>(R.id.malLoginStatus)
+            ?: return
+        val button = view?.findViewById<Button>(R.id.malLoginButton)
+            ?: return
+
+        if (loggedIn) {
+            status.text = "Logged in"
+            button.visibility = View.GONE
+        } else {
+            status.text = "Not logged in"
+            button.visibility = View.VISIBLE
         }
     }
 
