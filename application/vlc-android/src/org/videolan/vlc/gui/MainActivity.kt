@@ -111,18 +111,24 @@ class MainActivity : ContentActivity(),
 
     override fun getSnackAnchorView(overAudioPlayer:Boolean): View? {
         val view = super.getSnackAnchorView(overAudioPlayer)
-        return if (view?.id == android.R.id.content && !isTablet()) {if(overAudioPlayer) findViewById(android.R.id.content) else findViewById(R.id.appbar)} else view
+        return if (view?.id == android.R.id.content && !isTablet()) {
+            if(overAudioPlayer) findViewById(android.R.id.content)
+            else findViewById(R.id.appbar)
+        } else view
     }
 
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-            if (intent?.data?.scheme == "malvlcsync" &&
-    intent.data?.host == "oauth"
-) {
-    handleMalCallback(intent.data)
-            }
+
+        if (intent?.data?.scheme == "malvlcsync" &&
+            intent.data?.host == "oauth"
+        ) {
+            handleMalCallback(intent.data)
+        }
+
         Util.checkCpuCompatibility(this)
+
         /*** Start initializing the UI  */
         setContentView(R.layout.main)
         initAudioPlayerContainerActivity()
@@ -130,218 +136,377 @@ class MainActivity : ContentActivity(),
 
         /* Set up the action bar */
         prepareActionBar()
+
         /* Reload the latest preferences */
-        scanNeeded = savedInstanceState == null && settings.getBoolean(KEY_MEDIALIBRARY_AUTO_RESCAN, true)
+        scanNeeded = savedInstanceState == null &&
+                settings.getBoolean(KEY_MEDIALIBRARY_AUTO_RESCAN, true)
+
         mediaLibrary = Medialibrary.getInstance()
 
         if (!NotificationPermissionManager.launchIfNeeded(this)) {
             if (!WidgetMigration.launchIfNeeded(this)) {
-               if (!Settings.firstRun)  WhatsNewManager.launchIfNeeded(this) else WhatsNewManager.markAsShown(settings)
+                if (!Settings.firstRun)
+                    WhatsNewManager.launchIfNeeded(this)
+                else
+                    WhatsNewManager.markAsShown(settings)
             }
         }
 
         lifecycleScope.launch {
             if (!BuildConfig.DEBUG) return@launch
+
             AutoUpdate.clean(this@MainActivity.application)
+
             if (!settings.getBoolean(KEY_SHOW_UPDATE, true)) return@launch
+
             if (!settings.contains(KEY_SHOW_UPDATE)) {
                 AlertDialog.Builder(this@MainActivity)
                     .setTitle(resources.getString(R.string.update_nightly))
                     .setMessage(resources.getString(R.string.update_nightly_alert))
-                    .setPositiveButton(R.string.yes){ _, _ ->
+                    .setPositiveButton(R.string.yes) { _, _ ->
                         settings.putSingle(KEY_SHOW_UPDATE, true)
                     }
-                    .setNegativeButton(R.string.no){ _, _ ->
+                    .setNegativeButton(R.string.no) { _, _ ->
                         settings.putSingle(KEY_SHOW_UPDATE, false)
                     }
                     .show()
+
                 return@launch
             }
-            AutoUpdate.checkUpdate(this@MainActivity.application) {url, date ->
+
+            AutoUpdate.checkUpdate(this@MainActivity.application) { url, date ->
                 val updateDialog = UpdateDialog().apply {
-                    arguments = bundleOf(UPDATE_URL to url, UPDATE_DATE to date.time)
+                    arguments = bundleOf(
+                        UPDATE_URL to url,
+                        UPDATE_DATE to date.time
+                    )
                 }
-                updateDialog.show(supportFragmentManager, "fragment_update")
+
+                updateDialog.show(
+                    supportFragmentManager,
+                    "fragment_update"
+                )
             }
         }
+
         if (settings.getBoolean(KEY_LAST_SESSION_CRASHED, false)) {
             settings.putSingle(KEY_LAST_SESSION_CRASHED, false)
+
             if (BuildConfig.BETA) {
                 AlertDialog.Builder(this@MainActivity)
                     .setTitle(resources.getString(R.string.report_crash))
                     .setMessage(resources.getString(R.string.serious_crash))
                     .setPositiveButton(R.string.send_log) { _, _ ->
                         startActivity(
-                            Intent(applicationContext, FeedbackActivity::class.java)
-                                .apply {
-                                    putExtra(CRASH_HAPPENED, true)
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
+                            Intent(
+                                applicationContext,
+                                FeedbackActivity::class.java
+                            ).apply {
+                                putExtra(CRASH_HAPPENED, true)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
                         )
                     }
                     .setNegativeButton(R.string.cancel) { _, _ ->
-
                     }
                     .show()
-
             }
         }
-        if (!settings.getBoolean(KEY_OBSOLETE_RESTORE_FILE_WARNED, false)) {
+
+        if (!settings.getBoolean(
+                KEY_OBSOLETE_RESTORE_FILE_WARNED,
+                false
+            )
+        ) {
             lifecycleScope.launch {
-                val file = File(AndroidDevices.EXTERNAL_PUBLIC_DIRECTORY + EXPORT_SETTINGS_FILE)
+                val file = File(
+                    AndroidDevices.EXTERNAL_PUBLIC_DIRECTORY +
+                            EXPORT_SETTINGS_FILE
+                )
+
                 val fileExists = withContext(Dispatchers.IO) {
                     file.exists()
                 }
+
                 if (!fileExists) return@launch
-                //check if file is restorable
+
                 try {
                     PreferenceParser.checkRestoreFile(file.path.toUri())
                 } catch (_: Exception) {
-                    UiTools.snackerConfirm(this@MainActivity, getString(R.string.obsolete_restore_settings), confirmMessage = R.string.ok, indefinite = true) {
+                    UiTools.snackerConfirm(
+                        this@MainActivity,
+                        getString(R.string.obsolete_restore_settings),
+                        confirmMessage = R.string.ok,
+                        indefinite = true
+                    ) {
                         lifecycleScope.launch {
-                            PreferencesActivity.launchWithPref(this@MainActivity, "export_settings")
+                            PreferencesActivity.launchWithPref(
+                                this@MainActivity,
+                                "export_settings"
+                            )
                         }
                     }
                 }
             }
         }
-        settings.putSingle(KEY_OBSOLETE_RESTORE_FILE_WARNED, true)
-        backPressedCallback = onBackPressedDispatcher.addCallback(enabled = true) {
-            if (AndroidUtil.isNougatOrLater && isInMultiWindowMode) {
-                UiTools.confirmExit(this@MainActivity)
-                return@addCallback
+
+        settings.putSingle(
+            KEY_OBSOLETE_RESTORE_FILE_WARNED,
+            true
+        )
+
+        backPressedCallback =
+            onBackPressedDispatcher.addCallback(enabled = true) {
+                if (
+                    AndroidUtil.isNougatOrLater &&
+                    isInMultiWindowMode
+                ) {
+                    UiTools.confirmExit(this@MainActivity)
+                    return@addCallback
+                }
             }
+
+        backPressedCallback.isEnabled =
+            AndroidUtil.isNougatOrLater &&
+                    isInMultiWindowMode
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+
+        if (intent?.data?.scheme == "malvlcsync" &&
+            intent.data?.host == "oauth"
+        ) {
+            handleMalCallback(intent.data!!)
         }
-        backPressedCallback.isEnabled = AndroidUtil.isNougatOrLater && isInMultiWindowMode
     }
 
-override fun onNewIntent(intent: Intent?) {
-    super.onNewIntent(intent)
+    private fun handleMalCallback(uri: Uri?) {
+        val code = uri?.getQueryParameter("code")
 
-    if (intent?.data?.scheme == "malvlcsync" &&
-        intent.data?.host == "oauth"
-    ) {
-        handleMalCallback(intent.data!!)
-    }
-}
-private fun handleMalCallback(uri: Uri?) {
-    val code = uri?.getQueryParameter("code")
-
-    if (code == null) {
-        UiTools.snacker(this, "MAL login failed")
-        return
-    }
-
-    val codeVerifier = Settings.getInstance(this)
-        .getString("mal_code_verifier", null)
-
-    if (codeVerifier == null) {
-        UiTools.snacker(this, "MAL login failed: missing verifier")
-        return
-    }
-
-    lifecycleScope.launch(Dispatchers.IO) {
-        var connection: HttpURLConnection? = null
-
-        try {
-            val url = URL("https://myanimelist.net/v1/oauth2/token")
-
-            connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.doOutput = true
-            connection.setRequestProperty(
-                "Content-Type",
-                "application/x-www-form-urlencoded"
+        if (code == null) {
+            UiTools.snacker(
+                this,
+                "MAL login failed"
             )
+            return
+        }
 
-            val body = listOf(
-                "client_id" to MAL_CLIENT_ID,
-                "code" to code,
-                "code_verifier" to codeVerifier,
-                "grant_type" to "authorization_code",
-                "redirect_uri" to "malvlcsync://oauth"
-            ).joinToString("&") { (key, value) ->
-                "${URLEncoder.encode(key, "UTF-8")}=${
-                    URLEncoder.encode(value, "UTF-8")
-                }"
-            }
+        val codeVerifier = Settings.getInstance(this)
+            .getString("mal_code_verifier", null)
 
-            connection.outputStream.use { output ->
-                output.write(body.toByteArray(Charsets.UTF_8))
-            }
+        if (codeVerifier == null) {
+            UiTools.snacker(
+                this,
+                "MAL login failed: missing verifier"
+            )
+            return
+        }
 
-            val responseCode = connection.responseCode
+        lifecycleScope.launch(Dispatchers.IO) {
+            var connection: HttpURLConnection? = null
 
-            val response = try {
-                connection.getInputStream()
-                    .bufferedReader()
-                    .use { reader -> reader.readText() }
-            } catch (_: Exception) {
-                connection.getErrorStream()
-                    ?.bufferedReader()
-                    ?.use { reader -> reader.readText() }
-                    ?: ""
-            }
+            try {
+                val url = URL(
+                    "https://myanimelist.net/v1/oauth2/token"
+                )
 
-            if (responseCode !in 200..299) {
+                connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.doOutput = true
+
+                connection.setRequestProperty(
+                    "Content-Type",
+                    "application/x-www-form-urlencoded"
+                )
+
+                val body = listOf(
+                    "client_id" to MAL_CLIENT_ID,
+                    "code" to code,
+                    "code_verifier" to codeVerifier,
+                    "grant_type" to "authorization_code",
+                    "redirect_uri" to "malvlcsync://oauth"
+                ).joinToString("&") { (key, value) ->
+                    "${URLEncoder.encode(key, "UTF-8")}=${
+                        URLEncoder.encode(value, "UTF-8")
+                    }"
+                }
+
+                connection.outputStream.use { output ->
+                    output.write(
+                        body.toByteArray(Charsets.UTF_8)
+                    )
+                }
+
+                val responseCode = connection.responseCode
+
+                val response = try {
+                    connection.getInputStream()
+                        .bufferedReader()
+                        .use { reader ->
+                            reader.readText()
+                        }
+                } catch (_: Exception) {
+                    connection.getErrorStream()
+                        ?.bufferedReader()
+                        ?.use { reader ->
+                            reader.readText()
+                        }
+                        ?: ""
+                }
+
+                if (responseCode !in 200..299) {
+                    withContext(Dispatchers.Main) {
+                        UiTools.snacker(
+                            this@MainActivity,
+                            "MAL login failed: $responseCode"
+                        )
+                    }
+
+                    return@launch
+                }
+
+                val json = JSONObject(response)
+
+                val accessToken =
+                    json.optString("access_token", "")
+
+                val refreshToken =
+                    json.optString("refresh_token", "")
+
+                /*
+                 * Make sure we actually received an access token
+                 * before requesting the user's MAL profile.
+                 */
+                if (accessToken.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        UiTools.snacker(
+                            this@MainActivity,
+                            "MAL login failed: no access token"
+                        )
+                    }
+
+                    return@launch
+                }
+
+                /*
+                 * Get the logged-in MAL user's profile.
+                 */
+                val userConnection =
+                    URL(
+                        "https://api.myanimelist.net/v2/users/@me?fields=picture"
+                    ).openConnection() as HttpURLConnection
+
+                userConnection.requestMethod = "GET"
+
+                userConnection.setRequestProperty(
+                    "Authorization",
+                    "Bearer $accessToken"
+                )
+
+                val userResponse =
+                    userConnection.inputStream
+                        .bufferedReader()
+                        .use { it.readText() }
+
+                userConnection.disconnect()
+
+                val userJson = JSONObject(userResponse)
+
+                val malUsername =
+                    userJson.optString("name", "")
+
+                val malPicture =
+                    userJson.optString("picture", "")
+
+                /*
+                 * Save MAL login information and profile information.
+                 */
+                Settings.getInstance(this@MainActivity).apply {
+                    putSingle(
+                        "mal_access_token",
+                        accessToken
+                    )
+
+                    putSingle(
+                        "mal_refresh_token",
+                        refreshToken
+                    )
+
+                    putSingle(
+                        "mal_logged_in",
+                        true
+                    )
+
+                    putSingle(
+                        "mal_username",
+                        malUsername
+                    )
+
+                    putSingle(
+                        "mal_profile_picture",
+                        malPicture
+                    )
+
+                    putSingle(
+                        "mal_code_verifier",
+                        ""
+                    )
+                }
+
                 withContext(Dispatchers.Main) {
                     UiTools.snacker(
                         this@MainActivity,
-                        "MAL login failed: $responseCode"
+                        "Logged in to MyAnimeList!"
                     )
                 }
-                return@launch
-            }
 
-            val json = org.json.JSONObject(response)
-            val accessToken = json.optString("access_token", "")
-            val refreshToken = json.optString("refresh_token", "")
-
-            if (accessToken.isEmpty()) {
+            } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     UiTools.snacker(
                         this@MainActivity,
-                        "MAL login failed: no access token"
+                        "MAL login failed: ${e.message}"
                     )
                 }
-                return@launch
+            } finally {
+                connection?.disconnect()
             }
-
-            Settings.getInstance(this@MainActivity).apply {
-                putSingle("mal_access_token", accessToken)
-                putSingle("mal_refresh_token", refreshToken)
-                putSingle("mal_logged_in", true)
-                putSingle("mal_code_verifier", "")
-            }
-
-            withContext(Dispatchers.Main) {
-                UiTools.snacker(
-                    this@MainActivity,
-                    "Logged in to MyAnimeList!"
-                )
-            }
-
-        } catch (e: Exception) {
-            withContext(Dispatchers.Main) {
-                UiTools.snacker(
-                    this@MainActivity,
-                    "MAL login failed: ${e.message}"
-                )
-            }
-        } finally {
-            connection?.disconnect()
         }
     }
-}
+
     override fun onResume() {
         super.onResume()
+
         //Only the partial permission is granted for Android 11+
-        if (!settings.getBoolean(PERMISSION_NEVER_ASK, false) && settings.getLong(PERMISSION_NEXT_ASK, 0L) < System.currentTimeMillis() && Permissions.canReadStorage(this) && !Permissions.hasAllAccess(this)) {
-            UiTools.snackerMessageInfinite(this, getString(R.string.partial_content))?.setAction(R.string.more) {
-                PermissionListDialog.newInstance().show(supportFragmentManager, PermissionListDialog::class.simpleName)
+        if (!settings.getBoolean(
+                PERMISSION_NEVER_ASK,
+                false
+            ) &&
+            settings.getLong(
+                PERMISSION_NEXT_ASK,
+                0L
+            ) < System.currentTimeMillis() &&
+            Permissions.canReadStorage(this) &&
+            !Permissions.hasAllAccess(this)
+        ) {
+            UiTools.snackerMessageInfinite(
+                this,
+                getString(R.string.partial_content)
+            )?.setAction(R.string.more) {
+                PermissionListDialog.newInstance()
+                    .show(
+                        supportFragmentManager,
+                        PermissionListDialog::class.simpleName
+                    )
             }?.show()
-            settings.putSingle(PERMISSION_NEXT_ASK, System.currentTimeMillis() + TimeUnit.DAYS.toMillis(2))
+
+            settings.putSingle(
+                PERMISSION_NEXT_ASK,
+                System.currentTimeMillis() +
+                        TimeUnit.DAYS.toMillis(2)
+            )
         }
+
         updateIncognitoModeIcon()
         configurationChanged(getScreenWidth())
     }
@@ -351,18 +516,31 @@ private fun handleMalCallback(uri: Uri?) {
         permissions: Array<String?>,
         grantResults: IntArray
     ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == Permissions.FINE_STORAGE_PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        super.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults
+        )
+
+        if (
+            requestCode ==
+            Permissions.FINE_STORAGE_PERMISSION_REQUEST_CODE
+        ) {
+            if (
+                grantResults.isNotEmpty() &&
+                grantResults[0] ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
                 forceRefresh()
             }
         }
     }
 
-
     private fun prepareActionBar() {
         toolbarIcon = findViewById(R.id.toolbar_icon)
+
         updateIncognitoModeIcon()
+
         supportActionBar?.run {
             setDisplayHomeAsUpEnabled(false)
             setHomeButtonEnabled(false)
@@ -372,14 +550,22 @@ private fun handleMalCallback(uri: Uri?) {
 
     override fun onStart() {
         super.onStart()
+
         if (mediaLibrary.isInitiated) {
             /* Load media items from database and storage */
-            if (scanNeeded && Permissions.canReadStorage(this) && !mediaLibrary.isWorking) this.reloadLibrary()
+            if (
+                scanNeeded &&
+                Permissions.canReadStorage(this) &&
+                !mediaLibrary.isWorking
+            ) {
+                this.reloadLibrary()
+            }
         }
     }
 
     override fun onStop() {
         super.onStop()
+
         if (changingConfigurations == 0) {
             /* Check for an ongoing scan that needs to be resumed during onResume */
             scanNeeded = mediaLibrary.isWorking
@@ -388,102 +574,233 @@ private fun handleMalCallback(uri: Uri?) {
 
     override fun onSaveInstanceState(outState: Bundle) {
         val current = currentFragment
-        supportFragmentManager.putFragment(outState, "current_fragment", current!!)
-        outState.putInt(EXTRA_TARGET, currentFragmentId)
+
+        supportFragmentManager.putFragment(
+            outState,
+            "current_fragment",
+            current!!
+        )
+
+        outState.putInt(
+            EXTRA_TARGET,
+            currentFragmentId
+        )
+
         super.onSaveInstanceState(outState)
     }
 
     override fun onRestart() {
         super.onRestart()
+
         /* Reload the latest preferences */
         reloadPreferences()
     }
 
-    override fun startSupportActionMode(callback: ActionMode.Callback): ActionMode? {
+    override fun startSupportActionMode(
+        callback: ActionMode.Callback
+    ): ActionMode? {
         appBarLayout.setExpanded(true)
         return super.startSupportActionMode(callback)
     }
 
-    override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
-        menu?.findItem(R.id.ml_menu_refresh)?.isVisible = Permissions.canReadStorage(this)
-        menu?.findItem(R.id.incognito_mode)?.isChecked = Settings.getInstance(this).getBoolean(KEY_INCOGNITO, false)
+    override fun onPrepareOptionsMenu(
+        menu: Menu?
+    ): Boolean {
+        menu?.findItem(
+            R.id.ml_menu_refresh
+        )?.isVisible =
+            Permissions.canReadStorage(this)
+
+        menu?.findItem(
+            R.id.incognito_mode
+        )?.isChecked =
+            Settings.getInstance(this)
+                .getBoolean(
+                    KEY_INCOGNITO,
+                    false
+                )
+
         return super.onPrepareOptionsMenu(menu)
     }
 
     /**
      * Handle onClick form menu buttons
      */
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId != R.id.ml_menu_filter) UiTools.setKeyboardVisibility(appBarLayout, false)
+    override fun onOptionsItemSelected(
+        item: MenuItem
+    ): Boolean {
+        if (
+            item.itemId != R.id.ml_menu_filter
+        ) {
+            UiTools.setKeyboardVisibility(
+                appBarLayout,
+                false
+            )
+        }
 
-        // Handle item selection
         return when (item.itemId) {
+
             // Refresh
             R.id.ml_menu_refresh -> {
-                if (Permissions.canReadStorage(this)) forceRefresh()
+                if (Permissions.canReadStorage(this)) {
+                    forceRefresh()
+                }
+
                 true
             }
+
             R.id.incognito_mode -> {
                 lifecycleScope.launch {
-                    if (!UiTools.updateIncognitoMode(this@MainActivity, item)) return@launch
+                    if (
+                        !UiTools.updateIncognitoMode(
+                            this@MainActivity,
+                            item
+                        )
+                    ) {
+                        return@launch
+                    }
+
                     updateIncognitoModeIcon()
                 }
+
                 true
             }
+
             android.R.id.home ->
                 // Slide down the audio player or toggle the sidebar
                 slideDownAudioPlayer()
-            else -> super.onOptionsItemSelected(item)
+
+            else ->
+                super.onOptionsItemSelected(item)
         }
     }
 
     private fun updateIncognitoModeIcon() {
-        val incognito = Settings.getInstance (this).getBoolean(KEY_INCOGNITO, false)
-        toolbarIcon.setImageDrawable(ContextCompat.getDrawable(this, if (incognito) R.drawable.ic_incognito else if (BuildConfig.DEBUG && BuildConfig.VLC_MAJOR_VERSION == 4) R.drawable.ic_icon_vlc4 else R.drawable.ic_icon))
+        val incognito =
+            Settings.getInstance(this)
+                .getBoolean(
+                    KEY_INCOGNITO,
+                    false
+                )
 
+        toolbarIcon.setImageDrawable(
+            ContextCompat.getDrawable(
+                this,
+                if (incognito)
+                    R.drawable.ic_incognito
+                else if (
+                    BuildConfig.DEBUG &&
+                    BuildConfig.VLC_MAJOR_VERSION == 4
+                )
+                    R.drawable.ic_icon_vlc4
+                else
+                    R.drawable.ic_icon
+            )
+        )
     }
 
-    override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+    override fun onMenuItemActionExpand(
+        item: MenuItem
+    ): Boolean {
         return if (currentFragment is Filterable) {
-            (currentFragment as Filterable).allowedToExpand()
-        } else false
+            (currentFragment as Filterable)
+                .allowedToExpand()
+        } else {
+            false
+        }
     }
 
     fun forceRefresh() {
         forceRefresh(currentFragment)
     }
 
-    private fun forceRefresh(current: Fragment?) {
+    private fun forceRefresh(
+        current: Fragment?
+    ) {
         if (!mediaLibrary.isWorking) {
-            if (current != null && current is IRefreshable)
+            if (
+                current != null &&
+                current is IRefreshable
+            ) {
                 (current as IRefreshable).refresh()
-            else
+            } else {
                 reloadLibrary()
+            }
         }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?
+    ) {
+        super.onActivityResult(
+            requestCode,
+            resultCode,
+            data
+        )
+
 //        if (VLCBilling.getInstance(this.application).iabHelper.handleActivityResult(requestCode, resultCode, data)) return
+
         if (requestCode == ACTIVITY_RESULT_PREFERENCES) {
             when (resultCode) {
-                RESULT_RESCAN -> this.reloadLibrary()
-                RESULT_RESTART, RESULT_RESTART_APP -> {
-                    val intent = Intent(this@MainActivity, if (resultCode == RESULT_RESTART_APP) StartActivity::class.java else MainActivity::class.java)
+
+                RESULT_RESCAN ->
+                    this.reloadLibrary()
+
+                RESULT_RESTART,
+                RESULT_RESTART_APP -> {
+                    val intent = Intent(
+                        this@MainActivity,
+                        if (
+                            resultCode ==
+                            RESULT_RESTART_APP
+                        ) {
+                            StartActivity::class.java
+                        } else {
+                            MainActivity::class.java
+                        }
+                    )
+
                     finish()
                     startActivity(intent)
                 }
-                RESULT_UPDATE_SEEN_MEDIA -> for (fragment in supportFragmentManager.fragments)
-                    if (fragment is VideoGridFragment)
-                        fragment.updateSeenMediaMarker()
+
+                RESULT_UPDATE_SEEN_MEDIA ->
+                    for (
+                        fragment in
+                        supportFragmentManager.fragments
+                    ) {
+                        if (
+                            fragment is VideoGridFragment
+                        ) {
+                            fragment.updateSeenMediaMarker()
+                        }
+                    }
+
                 RESULT_UPDATE_ARTISTS -> {
                     val fragment = currentFragment
-                    if (fragment is AudioBrowserFragment) fragment.viewModel.refresh()
+
+                    if (
+                        fragment is AudioBrowserFragment
+                    ) {
+                        fragment.viewModel.refresh()
+                    }
                 }
             }
-        } else if (requestCode == ACTIVITY_RESULT_OPEN && resultCode == RESULT_OK) {
-            MediaUtils.openUri(this, data!!.data)
-        } else if (requestCode == ACTIVITY_RESULT_SECONDARY) {
+
+        } else if (
+            requestCode == ACTIVITY_RESULT_OPEN &&
+            resultCode == RESULT_OK
+        ) {
+            MediaUtils.openUri(
+                this,
+                data!!.data
+            )
+
+        } else if (
+            requestCode == ACTIVITY_RESULT_SECONDARY
+        ) {
             if (resultCode == RESULT_RESCAN) {
                 forceRefresh(currentFragment)
             } else {
@@ -493,10 +810,19 @@ private fun handleMalCallback(uri: Uri?) {
     }
 
     // Note. onKeyDown will not occur while moving within a list
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+    override fun onKeyDown(
+        keyCode: Int,
+        event: KeyEvent
+    ): Boolean {
         if (keyCode == KeyEvent.KEYCODE_SEARCH) {
-            toolbar.menu.findItem(R.id.ml_menu_filter).expandActionView()
+            toolbar.menu
+                .findItem(R.id.ml_menu_filter)
+                .expandActionView()
         }
-        return super.onKeyDown(keyCode, event)
+
+        return super.onKeyDown(
+            keyCode,
+            event
+        )
     }
 }
