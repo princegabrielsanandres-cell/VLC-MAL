@@ -252,18 +252,22 @@ updateMalLoginUi()
         ?: return
     val username = view?.findViewById<TextView>(R.id.malUsername)
         ?: return
-    val profilePicture = view?.findViewById<ImageView>(R.id.malProfilePicture)
-        ?: return
+    val profilePicture =
+        view?.findViewById<ImageView>(R.id.malProfilePicture)
+            ?: return
 
     if (loggedIn) {
         status.visibility = View.GONE
         button.visibility = View.GONE
         profile.visibility = View.VISIBLE
 
-        val malUsername = settings.getString("mal_username", "")
-        val malPicture = settings.getString("mal_profile_picture", "")
+        val malUsername =
+            settings.getString("mal_username", null) ?: ""
+        val malPicture =
+            settings.getString("mal_profile_picture", null) ?: ""
 
-        username.text = malUsername.ifEmpty { "MyAnimeList User" }
+        username.text =
+            malUsername.ifEmpty { "MyAnimeList User" }
 
         if (malPicture.isNotEmpty()) {
             lifecycleScope.launch {
@@ -278,10 +282,16 @@ updateMalLoginUi()
                         profilePicture.setImageBitmap(bitmap)
                     }
                 } catch (_: Exception) {
-                    // Keep the ImageView empty if the picture cannot be loaded.
+                    // Keep the default ImageView if the picture cannot be loaded.
                 }
             }
         }
+    } else {
+        status.visibility = View.VISIBLE
+        button.visibility = View.VISIBLE
+        profile.visibility = View.GONE
+    }
+    }
 
         profile.setOnClickListener {
             AlertDialog.Builder(requireContext())
