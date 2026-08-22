@@ -252,19 +252,14 @@ updateMalLoginUi()
         button.visibility = View.GONE
         profile.visibility = View.VISIBLE
 
-        // Temporary username.
-        // We'll replace this with the real MAL username next.
-        username.text = "MyAnimeList User"
+        val malUsername = settings.getString("mal_username", null)
+
+        username.text = malUsername ?: "MyAnimeList User"
     } else {
         status.visibility = View.VISIBLE
         button.visibility = View.VISIBLE
         profile.visibility = View.GONE
     }
-    }
-
-    private fun manageDonationVisibility() {
-        if (activity == null) return
-//         if (VLCBilling.getInstance(requireActivity().application).status == BillingStatus.FAILURE ||  VLCBilling.getInstance(requireActivity().application).skuDetails.isEmpty()) donationsButton.setGone() else donationsButton.setVisible()
     }
 
     override fun onStart() {
