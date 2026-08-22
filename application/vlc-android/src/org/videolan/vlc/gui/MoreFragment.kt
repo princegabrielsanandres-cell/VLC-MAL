@@ -24,6 +24,10 @@
 
 package org.videolan.vlc.gui
 
+import android.app.AlertDialog
+import android.widget.ImageView
+import android.graphics.BitmapFactory
+import java.net.URL
 import java.security.SecureRandom
 import android.net.Uri
 import android.content.Intent
@@ -37,6 +41,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.videolan.libvlc.Dialog
 import org.videolan.medialibrary.interfaces.Medialibrary
 import org.videolan.medialibrary.interfaces.media.MediaWrapper
@@ -245,19 +252,63 @@ updateMalLoginUi()
         ?: return
     val username = view?.findViewById<TextView>(R.id.malUsername)
         ?: return
+    val profilePicture = view?.findViewById<ImageView>(R.id.malProfilePicture)
+        ?: return
 
     if (loggedIn) {
         status.visibility = View.GONE
         button.visibility = View.GONE
         profile.visibility = View.VISIBLE
 
-        val malUsername = settings.getString("mal_username", null)
+        val malUsername = settings.getString("mal_username", "")
+        val malPicture = settings.getString("mal_profile_picture", "")
 
-        username.text = malUsername ?: "MyAnimeList User"
+        username.text = malUsername.ifEmpty { "MyAnimeList User" }
+
+        if (malPicture.isNotEmpty()) {
+            lifecycleScope.launch {
+                try {
+                    val bitmap = withContext(Dispatchers.IO) {
+                        URL(malPicture).openStream().use {
+                            BitmapFactory.decodeStream(it)
+                        }
+                    }
+
+                    if (bitmap != null && isAdded) {
+                        profilePicture.setImageBitmap(bitmap)
+                    }
+                } catch (_: Exception) {
+                    // Keep the ImageView empty if the picture cannot be loaded.
+                }
+            }
+        }
+
+        profile.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle(malUsername.ifEmpty { "MyAnimeList" })
+                .setItems(arrayOf("Log out")) { _, which ->
+                    if (which == 0) {
+                        settings.apply {
+                            putSingle("mal_access_token", "")
+                            putSingle("mal_refresh_token", "")
+                            putSingle("mal_logged_in", false)
+                            putSingle("mal_username", "")
+                            putSingle("mal_profile_picture", "")
+                            putSingle("mal_code_verifier", "")
+                        }
+
+                        profilePicture.setImageDrawable(null)
+                        updateMalLoginUi()
+                    }
+                }
+                .show()
+        }
     } else {
         status.visibility = View.VISIBLE
         button.visibility = View.VISIBLE
         profile.visibility = View.GONE
+
+        profilePicture.setImageDrawable(null)
     }
     }
 
