@@ -206,10 +206,9 @@ updateMalLoginUi()
 //            manageDonationVisibility()
 //        }
 
-            manageDonationVisibility()
-        donationsButton.setOnClickListener {
-            requireActivity().showDonations()
-        }
+            donationsButton.setOnClickListener {
+    requireActivity().showDonations()
+            }
 
         historyEntry.list.adapter = historyAdapter
         historyEntry.list.nextFocusUpId = R.id.ml_menu_search
