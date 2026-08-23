@@ -320,7 +320,6 @@ updateMalLoginUi()
 
         profilePicture.setImageDrawable(null)
     }
-    }
 
     override fun onStart() {
     super.onStart()
