@@ -286,6 +286,26 @@ updateMalLoginUi()
                 }
             }
         }
+                profilePicture.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle(malUsername.ifEmpty { "MyAnimeList" })
+                .setItems(arrayOf("Log out")) { _, which ->
+                    if (which == 0) {
+                        settings.apply {
+                            putSingle("mal_access_token", "")
+                            putSingle("mal_refresh_token", "")
+                            putSingle("mal_logged_in", false)
+                            putSingle("mal_username", "")
+                            putSingle("mal_profile_picture", "")
+                            putSingle("mal_code_verifier", "")
+                        }
+
+                        profilePicture.setImageDrawable(null)
+                        updateMalLoginUi()
+                    }
+                }
+                .show()
+                }
     } else {
         status.visibility = View.VISIBLE
         button.visibility = View.VISIBLE
