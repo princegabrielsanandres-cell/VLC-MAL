@@ -330,13 +330,33 @@ class PlaybackService : MediaBrowserServiceCompat(), LifecycleOwner, CoroutineSc
     "MAL SYNC TEST: PLAYING EVENT FIRED",
     Toast.LENGTH_LONG
 ).show()
-                playlistManager.getCurrentMedia()?.let { media ->
-    Toast.makeText(
-    this@PlaybackService,
-    MalSync.onMediaStarted(media.title),
-    Toast.LENGTH_LONG
-).show()
+playlistManager.getCurrentMedia()?.let { media ->
+    val parsed = MalSync.parse(media.title)
+
+    if (parsed != null) {
+        Toast.makeText(
+            this@PlaybackService,
+            "MAL SYNC: ${parsed.title} S${parsed.season ?: "?"}E${parsed.episode}",
+            Toast.LENGTH_LONG
+        ).show()
+
+        launch {
+            val result = MalApi.updateEpisode(
+                this@PlaybackService,
+                parsed.title,
+                parsed.episode
+            )
+
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    this@PlaybackService,
+                    result,
+                    Toast.LENGTH_LONG
+                ).show()
             }
+        }
+    }
+}
                 Log.i(TAG, "MAL SYNC TEST: PLAYING EVENT FIRED")
                 executeUpdate(true)
                 lastTime = getTime()
