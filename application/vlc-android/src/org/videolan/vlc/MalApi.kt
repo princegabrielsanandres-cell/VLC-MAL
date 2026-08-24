@@ -21,12 +21,6 @@ object MalApi {
         val animeTitle: String
     )
 
-    /*
-     * -------------------------------------------------------------
-     * Update MAL episode progress.
-     * -------------------------------------------------------------
-     */
-
     suspend fun updateEpisode(
         context: Context,
         title: String,
@@ -84,11 +78,9 @@ object MalApi {
             )
         }
 
-        val searchJson =
-            JSONObject(searchResult.body)
-
         val data =
-            searchJson.optJSONArray("data")
+            JSONObject(searchResult.body)
+                .optJSONArray("data")
 
         if (
             data == null ||
@@ -103,7 +95,7 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 2. Find the correct season.
+         * 2. Find the correct MAL season
          * ---------------------------------------------------------
          */
 
@@ -172,11 +164,8 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 3. Check the user's MAL list.
+         * 3. Find this EXACT anime in the user's MAL list
          * ---------------------------------------------------------
-         *
-         * We search for the matched MAL title and then make sure
-         * the returned node has the exact anime ID we selected.
          */
 
         val encodedMatchedTitle =
@@ -206,13 +195,9 @@ object MalApi {
             )
         }
 
-        val userListJson =
-            JSONObject(
-                userListResult.body
-            )
-
         val userData =
-            userListJson.optJSONArray("data")
+            JSONObject(userListResult.body)
+                .optJSONArray("data")
 
         var foundInList = false
         var currentEpisode = 0
@@ -239,11 +224,12 @@ object MalApi {
                     )
 
                 /*
-                 * VERY IMPORTANT:
+                 * Only accept the exact MAL ID selected above.
                  *
-                 * Only use the list entry if it is the exact
-                 * anime/season we selected above.
+                 * This prevents Season 2/3 from accidentally
+                 * using another season's list entry.
                  */
+
                 if (listAnimeId != animeId) {
                     continue
                 }
@@ -288,12 +274,42 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 4. Never move progress backwards.
+         * 4. HARD PROTECTION AGAINST BACKWARDS PROGRESS
          * ---------------------------------------------------------
+         *
+         * Example:
+         *
+         * MAL = E06
+         * VLC = E05
+         *
+         * NEVER send E05 to MAL.
          */
 
         if (
             foundInList &&
+            episode < currentEpisode
+        ) {
+
+            return@withContext UpdateResult(
+                "MAL: Kept episode $currentEpisode " +
+                    "(VLC played E$episode)",
+                false,
+                matchedTitle
+            )
+        }
+
+        /*
+         * Same episode.
+         *
+         * Do not unnecessarily rewrite the MAL entry.
+         *
+         * However, if the entry is not Watching and it isn't
+         * completed, we still need to correct its status.
+         */
+
+        if (
+            foundInList &&
+            episode == currentEpisode &&
             currentStatus == "completed"
         ) {
 
@@ -304,6 +320,10 @@ object MalApi {
                 matchedTitle
             )
         }
+
+        /*
+         * The target can ONLY stay the same or increase.
+         */
 
         val targetEpisode =
             if (foundInList) {
@@ -317,7 +337,7 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 5. Determine whether this is the final episode.
+         * 5. Final episode
          * ---------------------------------------------------------
          */
 
@@ -327,63 +347,53 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 6. Start date rules.
+         * 6. Start date
          * ---------------------------------------------------------
          *
-         * Existing start date:
+         * Existing date:
          *     ALWAYS preserve it.
          *
-         * No start date:
-         *     Only create one when VLC is playing episode 1.
-         *
-         * This means playing E06 on a completely new entry will
-         * NOT create a start date.
+         * No existing date:
+         *     Only create it when E1 is played.
          */
 
         val startDate =
-            if (currentStartDate.isNotEmpty()) {
+            when {
 
-                currentStartDate
+                currentStartDate.isNotEmpty() ->
+                    currentStartDate
 
-            } else if (
-                !foundInList &&
-                episode == 1
-            ) {
+                episode == 1 ->
+                    LocalDate.now().toString()
 
-                LocalDate.now().toString()
-
-            } else {
-
-                ""
+                else ->
+                    ""
             }
 
         /*
          * ---------------------------------------------------------
-         * 7. Finish date rules.
+         * 7. Finish date
          * ---------------------------------------------------------
-         *
-         * Only the final episode gets a finish date.
-         *
-         * If MAL already has one, preserve it.
          */
 
         val finishDate =
             if (isFinalEpisode) {
 
-                if (currentFinishDate.isNotEmpty()) {
+                if (
+                    currentFinishDate.isNotEmpty()
+                ) {
                     currentFinishDate
                 } else {
                     LocalDate.now().toString()
                 }
 
             } else {
-
                 ""
             }
 
         /*
          * ---------------------------------------------------------
-         * 8. Determine MAL status.
+         * 8. Status
          * ---------------------------------------------------------
          */
 
@@ -396,7 +406,7 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 9. Update MAL.
+         * 9. Update MAL
          * ---------------------------------------------------------
          */
 
@@ -429,7 +439,7 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 10. Completion result.
+         * 10. Completed
          * ---------------------------------------------------------
          */
 
@@ -441,12 +451,6 @@ object MalApi {
                 matchedTitle
             )
         }
-
-        /*
-         * ---------------------------------------------------------
-         * 11. Normal watching result.
-         * ---------------------------------------------------------
-         */
 
         return@withContext UpdateResult(
             "MAL: $matchedTitle → " +
@@ -813,10 +817,10 @@ object MalApi {
                 ) {
                     connection.inputStream
                 } else {
-                            connection.errorStream
+                    connection.errorStream
                 }
 
-            val responseBody =
+                        val responseBody =
                 stream
                     ?.bufferedReader()
                     ?.use {
@@ -841,7 +845,6 @@ object MalApi {
             )
 
         } finally {
-
             connection?.disconnect()
         }
     }
