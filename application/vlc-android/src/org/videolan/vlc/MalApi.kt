@@ -15,12 +15,15 @@ object MalApi {
     private const val API_BASE =
         "https://api.myanimelist.net/v2"
 
+    data class UpdateResult(
+        val message: String,
+        val completed: Boolean,
+        val animeTitle: String
+    )
+
     /*
      * -------------------------------------------------------------
-     * Update the MAL entry for the anime/episode being played.
-     *
-     * season is optional so existing PlaybackService code will
-     * continue to compile.
+     * Update the MAL entry.
      * -------------------------------------------------------------
      */
 
@@ -29,9 +32,10 @@ object MalApi {
         title: String,
         episode: Int,
         season: Int? = null
-    ): String = withContext(Dispatchers.IO) {
+    ): UpdateResult = withContext(Dispatchers.IO) {
 
-        val settings = Settings.getInstance(context)
+        val settings =
+            Settings.getInstance(context)
 
         val accessToken =
             settings.getString(
@@ -40,7 +44,11 @@ object MalApi {
             ) ?: ""
 
         if (accessToken.isEmpty()) {
-            return@withContext "MAL: Not logged in"
+            return@withContext UpdateResult(
+                "MAL: Not logged in",
+                false,
+                title
+            )
         }
 
         /*
@@ -56,18 +64,23 @@ object MalApi {
             )
 
         val searchUrl =
-            "$API_BASE/anime?q=$encodedTitle&limit=20"
+            "$API_BASE/anime" +
+                "?q=$encodedTitle" +
+                "&limit=20" +
+                "&fields=num_episodes"
 
         val searchResult =
             request(
-                url = searchUrl,
-                method = "GET",
-                accessToken = accessToken
+                searchUrl,
+                "GET",
+                accessToken
             )
 
         if (!searchResult.success) {
-            return@withContext(
-                "MAL: Anime search failed (${searchResult.code})"
+            return@withContext UpdateResult(
+                "MAL: Anime search failed (${searchResult.code})",
+                false,
+                title
             )
         }
 
@@ -78,26 +91,16 @@ object MalApi {
             searchJson.optJSONArray("data")
 
         if (data == null || data.length() == 0) {
-            return@withContext(
-                "MAL: Anime not found: $title"
+            return@withContext UpdateResult(
+                "MAL: Anime not found: $title",
+                false,
+                title
             )
         }
 
         /*
          * ---------------------------------------------------------
-         * 2. Find the correct MAL season
-         * ---------------------------------------------------------
-         *
-         * MAL normally stores different seasons as different
-         * anime entries.
-         *
-         * Example:
-         *
-         * Re:Zero Season 1 -> one MAL ID
-         * Re:Zero Season 2 -> another MAL ID
-         * Re:Zero Season 3 -> another MAL ID
-         *
-         * Therefore we cannot simply take the first search result.
+         * 2. Find the best matching MAL entry
          * ---------------------------------------------------------
          */
 
@@ -106,7 +109,7 @@ object MalApi {
 
         var animeId = 0
         var matchedTitle = title
-
+        var totalEpisodes = 0
         var bestScore = Int.MIN_VALUE
 
         for (i in 0 until data.length()) {
@@ -128,19 +131,18 @@ object MalApi {
                     0
                 )
 
-            if (malTitle.isEmpty() || id == 0) {
+            if (
+                malTitle.isEmpty() ||
+                id == 0
+            ) {
                 continue
             }
 
-            /*
-             * Calculate how well this MAL result matches
-             * our filename.
-             */
             val score =
                 calculateSeasonMatchScore(
-                    filenameTitle = normalizedTitle,
-                    malTitle = malTitle,
-                    requestedSeason = season
+                    normalizedTitle,
+                    malTitle,
+                    season
                 )
 
             if (score > bestScore) {
@@ -148,18 +150,26 @@ object MalApi {
                 bestScore = score
                 animeId = id
                 matchedTitle = malTitle
+
+                totalEpisodes =
+                    node.optInt(
+                        "num_episodes",
+                        0
+                    )
             }
         }
 
         if (animeId == 0) {
-            return@withContext(
-                "MAL: Could not find matching anime"
+            return@withContext UpdateResult(
+                "MAL: Could not find matching anime",
+                false,
+                title
             )
         }
 
         /*
          * ---------------------------------------------------------
-         * 3. Check the user's MAL list
+         * 3. Get user's MAL list
          * ---------------------------------------------------------
          */
 
@@ -177,34 +187,31 @@ object MalApi {
 
         val userListResult =
             request(
-                url = userListUrl,
-                method = "GET",
-                accessToken = accessToken
+                userListUrl,
+                "GET",
+                accessToken
             )
 
         if (!userListResult.success) {
-            return@withContext(
-                "MAL: List check failed (${userListResult.code})"
+            return@withContext UpdateResult(
+                "MAL: List check failed (${userListResult.code})",
+                false,
+                matchedTitle
             )
         }
 
         val userListJson =
-            JSONObject(userListResult.body)
+            JSONObject(
+                userListResult.body
+            )
 
         val userData =
             userListJson.optJSONArray("data")
 
         var foundInList = false
-
         var currentEpisode = 0
-
         var currentStatus = ""
-
         var currentStartDate = ""
-
-        /*
-         * Find the exact MAL anime ID in the user's list.
-         */
 
         if (userData != null) {
 
@@ -262,19 +269,21 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 4. Determine the episode progress
-         * ---------------------------------------------------------
-         *
-         * Never move MAL backwards.
-         *
-         * Example:
-         *
-         * MAL = E06
-         * VLC = E05
-         *
-         * Keep MAL at E06.
+         * 4. Never move progress backwards.
          * ---------------------------------------------------------
          */
+
+        if (
+            foundInList &&
+            episode <= currentEpisode &&
+            currentStatus == "completed"
+        ) {
+            return@withContext UpdateResult(
+                "MAL: Already completed $matchedTitle",
+                false,
+                matchedTitle
+            )
+        }
 
         val targetEpisode =
             if (foundInList) {
@@ -288,32 +297,21 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 5. Determine status
+         * 5. Determine whether this is the final episode.
          * ---------------------------------------------------------
          *
-         * Starting playback means the anime should be Watching.
+         * num_episodes == 0 means MAL doesn't know the total.
          *
-         * We intentionally do not mark it Completed yet.
-         * Completion will be added later when we implement
-         * final-episode detection.
-         * ---------------------------------------------------------
+         * In that situation we DO NOT automatically complete it.
          */
 
-        val targetStatus =
-            "watching"
+        val isFinalEpisode =
+            totalEpisodes > 0 &&
+                targetEpisode >= totalEpisodes
 
         /*
          * ---------------------------------------------------------
-         * 6. Determine start date
-         * ---------------------------------------------------------
-         *
-         * If MAL already has a start date:
-         *
-         *     KEEP IT
-         *
-         * Otherwise:
-         *
-         *     Set today's date.
+         * 6. Start date
          * ---------------------------------------------------------
          */
 
@@ -326,206 +324,187 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 7. Build update body
+         * 7. Build update.
          * ---------------------------------------------------------
          */
+
+        val status =
+            if (isFinalEpisode) {
+                "completed"
+            } else {
+                "watching"
+            }
 
         val body =
             buildUpdateBody(
-                status = targetStatus,
+                status = status,
                 episode = targetEpisode,
-                startDate = startDate
+                startDate = startDate,
+                finishDate =
+                    if (isFinalEpisode) {
+                        LocalDate.now().toString()
+                    } else {
+                        ""
+                    }
             )
-
-        /*
-         * ---------------------------------------------------------
-         * 8. Update MAL
-         * ---------------------------------------------------------
-         */
 
         val updateUrl =
             "$API_BASE/anime/$animeId/my_list_status"
 
         val updateResult =
             request(
-                url = updateUrl,
-                method = "PUT",
-                accessToken = accessToken,
-                body = body
+                updateUrl,
+                "PUT",
+                accessToken,
+                body
             )
 
         if (!updateResult.success) {
-
-            return@withContext(
-                "MAL: Update failed (${updateResult.code})"
+            return@withContext UpdateResult(
+                "MAL: Update failed (${updateResult.code})",
+                false,
+                matchedTitle
             )
         }
 
         /*
          * ---------------------------------------------------------
-         * 9. Return useful debug information
+         * 8. Completion result.
          * ---------------------------------------------------------
          */
 
-        return@withContext(
-            if (foundInList) {
+        if (isFinalEpisode) {
 
-                "MAL: $matchedTitle → " +
-                    "S${season ?: "?"}E$targetEpisode " +
-                    "($targetStatus)"
+            return@withContext UpdateResult(
+                "MAL: Completed $matchedTitle!",
+                true,
+                matchedTitle
+            )
+        }
 
-            } else {
-
-                "MAL: Started watching " +
-                    "$matchedTitle → " +
-                    "S${season ?: "?"}E$targetEpisode"
-            }
+        return@withContext UpdateResult(
+            "MAL: $matchedTitle → " +
+                "S${season ?: "?"}E$targetEpisode",
+            false,
+            matchedTitle
         )
     }
 
     /*
      * -------------------------------------------------------------
-     * Calculate how well a MAL result matches the requested season.
+     * Save a score to MAL.
      * -------------------------------------------------------------
      */
 
-    private fun calculateSeasonMatchScore(
-        filenameTitle: String,
-        malTitle: String,
-        requestedSeason: Int?
-    ): Int {
+    suspend fun updateScore(
+        context: Context,
+        title: String,
+        score: Int
+    ): String = withContext(Dispatchers.IO) {
 
-        val normalizedMalTitle =
-            normalizeTitle(malTitle)
+        val settings =
+            Settings.getInstance(context)
 
-        var score = 0
+        val accessToken =
+            settings.getString(
+                "mal_access_token",
+                null
+            ) ?: ""
 
-        /*
-         * Exact title match gets the strongest base score.
-         */
-
-        if (normalizedMalTitle == filenameTitle) {
-            score += 100
+        if (accessToken.isEmpty()) {
+            return@withContext "MAL: Not logged in"
         }
 
-        /*
-         * Partial title matching.
-         */
+        val encodedTitle =
+            URLEncoder.encode(
+                title,
+                "UTF-8"
+            )
+
+        val searchUrl =
+            "$API_BASE/anime" +
+                "?q=$encodedTitle" +
+                "&limit=20"
+
+        val searchResult =
+            request(
+                searchUrl,
+                "GET",
+                accessToken
+            )
+
+        if (!searchResult.success) {
+            return@withContext(
+                "MAL: Score search failed (${searchResult.code})"
+            )
+        }
+
+        val data =
+            JSONObject(
+                searchResult.body
+            ).optJSONArray("data")
 
         if (
-            normalizedMalTitle.contains(
-                filenameTitle
-            )
+            data == null ||
+            data.length() == 0
         ) {
-            score += 40
-        }
-
-        if (
-            filenameTitle.contains(
-                normalizedMalTitle
+            return@withContext(
+                "MAL: Anime not found"
             )
-        ) {
-            score += 20
         }
 
-        /*
-         * If no season was detected, don't try to guess one.
-         */
+        val animeId =
+            data.optJSONObject(0)
+                ?.optJSONObject("node")
+                ?.optInt("id", 0)
+                ?: 0
 
-        if (requestedSeason == null) {
-            return score
-        }
-
-        /*
-         * ---------------------------------------------------------
-         * Season matching.
-         *
-         * Examples:
-         *
-         * "2nd Season" -> Season 2
-         * "Second Season" -> Season 2
-         * "Season 2" -> Season 2
-         * "S2" -> Season 2
-         * ---------------------------------------------------------
-         */
-
-        val seasonNumber =
-            requestedSeason.toString()
-
-        val seasonMatches =
-            listOf(
-                "season $seasonNumber",
-                "season$seasonNumber",
-                "${seasonNumber}nd season",
-                "${seasonNumber}ndseason",
-                "${seasonNumber}rd season",
-                "${seasonNumber}rdseason",
-                "${seasonNumber}th season",
-                "${seasonNumber}thseason",
-                "s$seasonNumber",
-                "s0$seasonNumber"
+        if (animeId == 0) {
+            return@withContext(
+                "MAL: Invalid anime ID"
             )
+        }
 
-        var hasRequestedSeason = false
-
-        for (pattern in seasonMatches) {
-
-            if (
-                normalizedMalTitle.contains(
-                    pattern
+        val body =
+            "score=" +
+                URLEncoder.encode(
+                    score.toString(),
+                    "UTF-8"
                 )
-            ) {
-                hasRequestedSeason = true
-                break
-            }
-        }
 
-        if (hasRequestedSeason) {
-            score += 100
-        }
+        val updateUrl =
+            "$API_BASE/anime/$animeId/my_list_status"
 
-        /*
-         * If MAL explicitly looks like another season,
-         * penalize it.
-         */
-
-        val otherSeasonRegex =
-            Regex(
-                "(?:season|s)\\s*([0-9]+)"
+        val result =
+            request(
+                updateUrl,
+                "PUT",
+                accessToken,
+                body
             )
 
-        val seasonMatch =
-            otherSeasonRegex.find(
-                normalizedMalTitle
+        if (!result.success) {
+            return@withContext(
+                "MAL: Score update failed (${result.code})"
             )
-
-        if (seasonMatch != null) {
-
-            val detectedSeason =
-                seasonMatch.groupValues[1]
-                    .toIntOrNull()
-
-            if (
-                detectedSeason != null &&
-                detectedSeason != requestedSeason
-            ) {
-                score -= 100
-            }
         }
 
-        return score
+        return@withContext(
+            "MAL: Score saved: $score/10"
+        )
     }
 
     /*
      * -------------------------------------------------------------
-     * Build MAL update body.
+     * Build update body.
      * -------------------------------------------------------------
      */
 
     private fun buildUpdateBody(
         status: String,
         episode: Int,
-        startDate: String
+        startDate: String,
+        finishDate: String
     ): String {
 
         return buildString {
@@ -546,14 +525,125 @@ object MalApi {
                     )
             )
 
-            append(
-                "&start_date=" +
-                    URLEncoder.encode(
-                        startDate,
-                        "UTF-8"
-                    )
-            )
+            if (startDate.isNotEmpty()) {
+
+                append(
+                    "&start_date=" +
+                        URLEncoder.encode(
+                            startDate,
+                            "UTF-8"
+                        )
+                )
+            }
+
+            if (finishDate.isNotEmpty()) {
+
+                append(
+                    "&finish_date=" +
+                        URLEncoder.encode(
+                            finishDate,
+                            "UTF-8"
+                        )
+                )
+            }
         }
+    }
+
+    /*
+     * -------------------------------------------------------------
+     * Season-aware matching.
+     * -------------------------------------------------------------
+     */
+
+    private fun calculateSeasonMatchScore(
+        filenameTitle: String,
+        malTitle: String,
+        requestedSeason: Int?
+    ): Int {
+
+        val normalizedMalTitle =
+            normalizeTitle(malTitle)
+
+        var score = 0
+
+        if (
+            normalizedMalTitle ==
+            filenameTitle
+        ) {
+            score += 100
+        }
+
+        if (
+            normalizedMalTitle.contains(
+                filenameTitle
+            )
+        ) {
+            score += 40
+        }
+
+        if (
+            filenameTitle.contains(
+                normalizedMalTitle
+            )
+        ) {
+            score += 20
+        }
+
+        if (requestedSeason == null) {
+            return score
+        }
+
+        val season =
+            requestedSeason.toString()
+
+        val requestedPatterns =
+            listOf(
+                "season $season",
+                "season$season",
+                "${season}nd season",
+                "${season}rd season",
+                "${season}th season",
+                "s$season",
+                "s0$season"
+            )
+
+        for (pattern in requestedPatterns) {
+
+            if (
+                normalizedMalTitle.contains(
+                    pattern
+                )
+            ) {
+                score += 100
+                break
+            }
+        }
+
+        val seasonRegex =
+            Regex(
+                "(?:season|s)\\s*([0-9]+)"
+            )
+
+        val match =
+            seasonRegex.find(
+                normalizedMalTitle
+            )
+
+        if (match != null) {
+
+            val detectedSeason =
+                match.groupValues[1]
+                    .toIntOrNull()
+
+            if (
+                detectedSeason != null &&
+                detectedSeason != requestedSeason
+            ) {
+                score -= 100
+            }
+        }
+
+        return score
     }
 
     /*
@@ -593,7 +683,7 @@ object MalApi {
 
     /*
      * -------------------------------------------------------------
-     * HTTP request helper.
+     * HTTP request.
      * -------------------------------------------------------------
      */
 
@@ -635,7 +725,8 @@ object MalApi {
 
                 connection.doOutput = true
 
-                connection.outputStream.use { output ->
+                connection.outputStream.use {
+                    output ->
 
                     output.write(
                         body.toByteArray(
@@ -649,7 +740,9 @@ object MalApi {
                 connection.responseCode
 
             val stream =
-                if (responseCode in 200..299) {
+                if (
+                    responseCode in 200..299
+                ) {
                     connection.inputStream
                 } else {
                     connection.errorStream
@@ -680,7 +773,6 @@ object MalApi {
             )
 
         } finally {
-
             connection?.disconnect()
         }
     }
