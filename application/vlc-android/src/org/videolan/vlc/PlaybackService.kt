@@ -341,11 +341,12 @@ playlistManager.getCurrentMedia()?.let { media ->
         ).show()
 
         launch {
-            val result = MalApi.updateEpisode(
-                this@PlaybackService,
-                parsed.title,
-                parsed.episode
-            )
+val result = MalApi.updateEpisode(
+    this@PlaybackService,
+    parsed.title,
+    parsed.episode,
+    parsed.season
+)
 
             withContext(Dispatchers.Main) {
                 Toast.makeText(
