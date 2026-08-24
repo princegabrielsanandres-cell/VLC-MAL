@@ -340,8 +340,7 @@ playlistManager.getCurrentMedia()?.let { media ->
             "MAL SYNC: ${parsed.title} S${parsed.season ?: "?"}E${parsed.episode}",
             Toast.LENGTH_LONG
         ).show()
-
-launch {
+    launch {
     val result = MalApi.updateEpisode(
         this@PlaybackService,
         parsed.title,
@@ -355,13 +354,12 @@ launch {
             result.message,
             Toast.LENGTH_LONG
         ).show()
-    }
 
-    if (result.completed) {
-        showMalScoreDialog(result.animeTitle)
-          }
-       }
-    }
+        if (result.completed) {
+            showMalScoreDialog(result.animeTitle)
+         }
+      }
+   }
 }
                 Log.i(TAG, "MAL SYNC TEST: PLAYING EVENT FIRED")
                 executeUpdate(true)
