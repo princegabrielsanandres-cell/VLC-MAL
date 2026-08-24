@@ -69,7 +69,7 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 2. Find the best matching MAL anime
+         * 2. Find the best matching anime
          * ---------------------------------------------------------
          */
 
@@ -97,18 +97,17 @@ object MalApi {
             }
 
             if (normalizeTitle(malTitle) == normalizedTitle) {
+
                 animeId = id
                 matchedTitle = malTitle
+
                 break
             }
         }
 
         /*
-         * No exact match.
-         *
-         * Temporarily use MAL's first search result.
-         *
-         * We'll improve English/Japanese/sequel matching later.
+         * If there wasn't an exact title match,
+         * use MAL's first search result for now.
          */
 
         if (animeId == 0) {
@@ -139,28 +138,20 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 3. Check the user's MAL list
+         * 3. Get the user's MAL list
          * ---------------------------------------------------------
          *
-         * We use /users/@me/animelist instead of trying to GET
-         * /anime/{id}/my_list_status, because that endpoint does
-         * not support GET in the way we were using it.
+         * We request the user's list and include list_status.
          *
-         * Searching the user's list by the matched MAL title lets
-         * us determine whether the anime already exists and what
-         * its current episode progress is.
+         * The anime ID is what matters here.
+         *
+         * We DO NOT trust the filename episode number to be
+         * higher or lower than the existing MAL progress.
          */
-
-        val encodedMatchedTitle =
-            URLEncoder.encode(
-                matchedTitle,
-                "UTF-8"
-            )
 
         val userListUrl =
             "$API_BASE/users/@me/animelist" +
-                "?q=$encodedMatchedTitle" +
-                "&limit=100" +
+                "?limit=1000" +
                 "&fields=list_status"
 
         val userListResult =
@@ -183,11 +174,13 @@ object MalApi {
             userListJson.optJSONArray("data")
 
         /*
-         * Find the exact anime ID inside the user's list.
+         * ---------------------------------------------------------
+         * 4. Find the exact anime ID in the user's list
+         * ---------------------------------------------------------
          */
 
-        var currentEpisode = 0
         var foundInList = false
+        var currentEpisode = 0
 
         if (userData != null) {
 
@@ -225,21 +218,25 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 4. Anime already exists in MAL
+         * 5. Anime already exists in MAL
          * ---------------------------------------------------------
          */
 
         if (foundInList) {
 
             /*
-             * Never move progress backwards.
+             * CRITICAL:
+             *
+             * Never decrease MAL progress.
              *
              * Example:
              *
              * MAL = E06
              * VLC = E05
              *
-             * Keep MAL at E06.
+             * Result:
+             *
+             * MAL stays at E06.
              */
 
             if (episode <= currentEpisode) {
@@ -252,17 +249,18 @@ object MalApi {
             /*
              * VLC is ahead of MAL.
              *
-             * Update only the progress.
+             * Update ONLY the episode number.
              *
-             * We intentionally do NOT send start_date here,
-             * preserving the original start date.
+             * We intentionally do NOT send:
+             *
+             * start_date
+             * status
+             *
+             * This protects the original MAL start date.
              */
 
             val body =
-                buildUpdateBody(
-                    episode = episode,
-                    includeStartDate = false
-                )
+                buildEpisodeBody(episode)
 
             val updateUrl =
                 "$API_BASE/anime/$animeId/my_list_status"
@@ -278,7 +276,8 @@ object MalApi {
             if (!updateResult.success) {
 
                 return@withContext(
-                    "MAL: Update failed (${updateResult.code})"
+                    "MAL: Episode update failed " +
+                        "(${updateResult.code})"
                 )
             }
 
@@ -289,21 +288,20 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 5. Anime is NOT in the user's MAL list
+         * 6. Anime is NOT in the user's MAL list
          * ---------------------------------------------------------
          *
          * Add it as Watching.
          *
-         * The current date becomes the start date.
+         * This is the ONLY situation where we send start_date.
          */
 
         val startDate =
             LocalDate.now().toString()
 
         val body =
-            buildUpdateBody(
+            buildStartBody(
                 episode = episode,
-                includeStartDate = true,
                 startDate = startDate
             )
 
@@ -321,25 +319,50 @@ object MalApi {
         if (!updateResult.success) {
 
             return@withContext(
-                "MAL: First update failed (${updateResult.code})"
+                "MAL: First update failed " +
+                    "(${updateResult.code})"
             )
         }
 
         return@withContext(
-            "MAL: Started watching $matchedTitle → episode $episode"
+            "MAL: Started watching " +
+                "$matchedTitle → episode $episode"
         )
     }
 
     /*
      * -------------------------------------------------------------
-     * Build MAL update body.
+     * Build body for an existing MAL entry.
+     * -------------------------------------------------------------
+     *
+     * Only the episode number is changed.
+     */
+
+    private fun buildEpisodeBody(
+        episode: Int
+    ): String {
+
+        return buildString {
+
+            append(
+                "num_watched_episodes=" +
+                    URLEncoder.encode(
+                        episode.toString(),
+                        "UTF-8"
+                    )
+            )
+        }
+    }
+
+    /*
+     * -------------------------------------------------------------
+     * Build body for a brand-new MAL entry.
      * -------------------------------------------------------------
      */
 
-    private fun buildUpdateBody(
+    private fun buildStartBody(
         episode: Int,
-        includeStartDate: Boolean,
-        startDate: String = ""
+        startDate: String
     ): String {
 
         return buildString {
@@ -360,22 +383,19 @@ object MalApi {
                     )
             )
 
-            if (includeStartDate && startDate.isNotEmpty()) {
-
-                append(
-                    "&start_date=" +
-                        URLEncoder.encode(
-                            startDate,
-                            "UTF-8"
-                        )
-                )
-            }
+            append(
+                "&start_date=" +
+                    URLEncoder.encode(
+                        startDate,
+                        "UTF-8"
+                    )
+            )
         }
     }
 
     /*
      * -------------------------------------------------------------
-     * Normalize titles for comparison.
+     * Normalize titles.
      * -------------------------------------------------------------
      */
 
