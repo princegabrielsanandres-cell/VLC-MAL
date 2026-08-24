@@ -1,6 +1,7 @@
 package org.videolan.vlc
 
 import android.content.Context
+import org.videolan.tools.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
