@@ -15,16 +15,29 @@ object MalApi {
     private const val API_BASE =
         "https://api.myanimelist.net/v2"
 
+    /*
+     * -------------------------------------------------------------
+     * Update the MAL entry for the anime/episode being played.
+     *
+     * season is optional so existing PlaybackService code will
+     * continue to compile.
+     * -------------------------------------------------------------
+     */
+
     suspend fun updateEpisode(
         context: Context,
         title: String,
-        episode: Int
+        episode: Int,
+        season: Int? = null
     ): String = withContext(Dispatchers.IO) {
 
         val settings = Settings.getInstance(context)
 
         val accessToken =
-            settings.getString("mal_access_token", null) ?: ""
+            settings.getString(
+                "mal_access_token",
+                null
+            ) ?: ""
 
         if (accessToken.isEmpty()) {
             return@withContext "MAL: Not logged in"
@@ -32,15 +45,18 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 1. Search MAL for the anime
+         * 1. Search MAL
          * ---------------------------------------------------------
          */
 
         val encodedTitle =
-            URLEncoder.encode(title, "UTF-8")
+            URLEncoder.encode(
+                title,
+                "UTF-8"
+            )
 
         val searchUrl =
-            "$API_BASE/anime?q=$encodedTitle&limit=10"
+            "$API_BASE/anime?q=$encodedTitle&limit=20"
 
         val searchResult =
             request(
@@ -69,7 +85,19 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 2. Find the best matching anime
+         * 2. Find the correct MAL season
+         * ---------------------------------------------------------
+         *
+         * MAL normally stores different seasons as different
+         * anime entries.
+         *
+         * Example:
+         *
+         * Re:Zero Season 1 -> one MAL ID
+         * Re:Zero Season 2 -> another MAL ID
+         * Re:Zero Season 3 -> another MAL ID
+         *
+         * Therefore we cannot simply take the first search result.
          * ---------------------------------------------------------
          */
 
@@ -79,6 +107,8 @@ object MalApi {
         var animeId = 0
         var matchedTitle = title
 
+        var bestScore = Int.MIN_VALUE
+
         for (i in 0 until data.length()) {
 
             val node =
@@ -87,71 +117,62 @@ object MalApi {
                     ?: continue
 
             val malTitle =
-                node.optString("title", "")
+                node.optString(
+                    "title",
+                    ""
+                )
 
             val id =
-                node.optInt("id", 0)
+                node.optInt(
+                    "id",
+                    0
+                )
 
             if (malTitle.isEmpty() || id == 0) {
                 continue
             }
 
-            if (normalizeTitle(malTitle) == normalizedTitle) {
+            /*
+             * Calculate how well this MAL result matches
+             * our filename.
+             */
+            val score =
+                calculateSeasonMatchScore(
+                    filenameTitle = normalizedTitle,
+                    malTitle = malTitle,
+                    requestedSeason = season
+                )
 
+            if (score > bestScore) {
+
+                bestScore = score
                 animeId = id
                 matchedTitle = malTitle
-
-                break
             }
         }
 
-        /*
-         * If there wasn't an exact title match,
-         * use MAL's first search result for now.
-         */
-
         if (animeId == 0) {
-
-            val firstNode =
-                data.optJSONObject(0)
-                    ?.optJSONObject("node")
-
-            if (firstNode == null) {
-                return@withContext(
-                    "MAL: Could not read search result"
-                )
-            }
-
-            animeId =
-                firstNode.optInt("id", 0)
-
-            matchedTitle =
-                firstNode.optString(
-                    "title",
-                    title
-                )
-        }
-
-        if (animeId == 0) {
-            return@withContext "MAL: Invalid anime ID"
+            return@withContext(
+                "MAL: Could not find matching anime"
+            )
         }
 
         /*
          * ---------------------------------------------------------
-         * 3. Get the user's MAL list
+         * 3. Check the user's MAL list
          * ---------------------------------------------------------
-         *
-         * We request the user's list and include list_status.
-         *
-         * The anime ID is what matters here.
-         *
-         * We DO NOT trust the filename episode number to be
-         * higher or lower than the existing MAL progress.
          */
+
+        val encodedMatchedTitle =
+            URLEncoder.encode(
+                matchedTitle,
+                "UTF-8"
+            )
 
         val userListUrl =
             "$API_BASE/users/@me/animelist" +
-                "?limit=1000" +
+                "?q=$encodedMatchedTitle" +
+                "&limit=100" +
                 "&fields=list_status"
 
         val userListResult =
@@ -173,14 +194,17 @@ object MalApi {
         val userData =
             userListJson.optJSONArray("data")
 
-        /*
-         * ---------------------------------------------------------
-         * 4. Find the exact anime ID in the user's list
-         * ---------------------------------------------------------
-         */
-
         var foundInList = false
+
         var currentEpisode = 0
+
+        var currentStatus = ""
+
+        var currentStartDate = ""
+
+        /*
+         * Find the exact MAL anime ID in the user's list.
+         */
 
         if (userData != null) {
 
@@ -195,7 +219,10 @@ object MalApi {
                         ?: continue
 
                 val listAnimeId =
-                    node.optInt("id", 0)
+                    node.optInt(
+                        "id",
+                        0
+                    )
 
                 if (listAnimeId != animeId) {
                     continue
@@ -204,13 +231,30 @@ object MalApi {
                 foundInList = true
 
                 val listStatus =
-                    item.optJSONObject("list_status")
+                    item.optJSONObject(
+                        "list_status"
+                    )
 
-                currentEpisode =
-                    listStatus?.optInt(
-                        "num_episodes_watched",
-                        0
-                    ) ?: 0
+                if (listStatus != null) {
+
+                    currentEpisode =
+                        listStatus.optInt(
+                            "num_episodes_watched",
+                            0
+                        )
+
+                    currentStatus =
+                        listStatus.optString(
+                            "status",
+                            ""
+                        )
+
+                    currentStartDate =
+                        listStatus.optString(
+                            "start_date",
+                            ""
+                        )
+                }
 
                 break
             }
@@ -218,92 +262,86 @@ object MalApi {
 
         /*
          * ---------------------------------------------------------
-         * 5. Anime already exists in MAL
+         * 4. Determine the episode progress
+         * ---------------------------------------------------------
+         *
+         * Never move MAL backwards.
+         *
+         * Example:
+         *
+         * MAL = E06
+         * VLC = E05
+         *
+         * Keep MAL at E06.
          * ---------------------------------------------------------
          */
 
-        if (foundInList) {
-
-            /*
-             * CRITICAL:
-             *
-             * Never decrease MAL progress.
-             *
-             * Example:
-             *
-             * MAL = E06
-             * VLC = E05
-             *
-             * Result:
-             *
-             * MAL stays at E06.
-             */
-
-            if (episode <= currentEpisode) {
-
-                return@withContext(
-                    "MAL: Already at episode $currentEpisode"
+        val targetEpisode =
+            if (foundInList) {
+                maxOf(
+                    currentEpisode,
+                    episode
                 )
+            } else {
+                episode
             }
-
-            /*
-             * VLC is ahead of MAL.
-             *
-             * Update ONLY the episode number.
-             *
-             * We intentionally do NOT send:
-             *
-             * start_date
-             * status
-             *
-             * This protects the original MAL start date.
-             */
-
-            val body =
-                buildEpisodeBody(episode)
-
-            val updateUrl =
-                "$API_BASE/anime/$animeId/my_list_status"
-
-            val updateResult =
-                request(
-                    url = updateUrl,
-                    method = "PUT",
-                    accessToken = accessToken,
-                    body = body
-                )
-
-            if (!updateResult.success) {
-
-                return@withContext(
-                    "MAL: Episode update failed " +
-                        "(${updateResult.code})"
-                )
-            }
-
-            return@withContext(
-                "MAL: Updated $matchedTitle → episode $episode"
-            )
-        }
 
         /*
          * ---------------------------------------------------------
-         * 6. Anime is NOT in the user's MAL list
+         * 5. Determine status
          * ---------------------------------------------------------
          *
-         * Add it as Watching.
+         * Starting playback means the anime should be Watching.
          *
-         * This is the ONLY situation where we send start_date.
+         * We intentionally do not mark it Completed yet.
+         * Completion will be added later when we implement
+         * final-episode detection.
+         * ---------------------------------------------------------
+         */
+
+        val targetStatus =
+            "watching"
+
+        /*
+         * ---------------------------------------------------------
+         * 6. Determine start date
+         * ---------------------------------------------------------
+         *
+         * If MAL already has a start date:
+         *
+         *     KEEP IT
+         *
+         * Otherwise:
+         *
+         *     Set today's date.
+         * ---------------------------------------------------------
          */
 
         val startDate =
-            LocalDate.now().toString()
+            if (currentStartDate.isNotEmpty()) {
+                currentStartDate
+            } else {
+                LocalDate.now().toString()
+            }
+
+        /*
+         * ---------------------------------------------------------
+         * 7. Build update body
+         * ---------------------------------------------------------
+         */
 
         val body =
-            buildStartBody(
-                episode = episode,
+            buildUpdateBody(
+                status = targetStatus,
+                episode = targetEpisode,
                 startDate = startDate
             )
+
+        /*
+         * ---------------------------------------------------------
+         * 8. Update MAL
+         * ---------------------------------------------------------
+         */
 
         val updateUrl =
             "$API_BASE/anime/$animeId/my_list_status"
@@ -319,48 +357,173 @@ object MalApi {
         if (!updateResult.success) {
 
             return@withContext(
-                "MAL: First update failed " +
-                    "(${updateResult.code})"
+                "MAL: Update failed (${updateResult.code})"
             )
         }
 
+        /*
+         * ---------------------------------------------------------
+         * 9. Return useful debug information
+         * ---------------------------------------------------------
+         */
+
         return@withContext(
-            "MAL: Started watching " +
-                "$matchedTitle → episode $episode"
+            if (foundInList) {
+
+                "MAL: $matchedTitle → " +
+                    "S${season ?: "?"}E$targetEpisode " +
+                    "($targetStatus)"
+
+            } else {
+
+                "MAL: Started watching " +
+                    "$matchedTitle → " +
+                    "S${season ?: "?"}E$targetEpisode"
+            }
         )
     }
 
     /*
      * -------------------------------------------------------------
-     * Build body for an existing MAL entry.
+     * Calculate how well a MAL result matches the requested season.
      * -------------------------------------------------------------
-     *
-     * Only the episode number is changed.
      */
 
-    private fun buildEpisodeBody(
-        episode: Int
-    ): String {
+    private fun calculateSeasonMatchScore(
+        filenameTitle: String,
+        malTitle: String,
+        requestedSeason: Int?
+    ): Int {
 
-        return buildString {
+        val normalizedMalTitle =
+            normalizeTitle(malTitle)
 
-            append(
-                "num_watched_episodes=" +
-                    URLEncoder.encode(
-                        episode.toString(),
-                        "UTF-8"
-                    )
-            )
+        var score = 0
+
+        /*
+         * Exact title match gets the strongest base score.
+         */
+
+        if (normalizedMalTitle == filenameTitle) {
+            score += 100
         }
+
+        /*
+         * Partial title matching.
+         */
+
+        if (
+            normalizedMalTitle.contains(
+                filenameTitle
+            )
+        ) {
+            score += 40
+        }
+
+        if (
+            filenameTitle.contains(
+                normalizedMalTitle
+            )
+        ) {
+            score += 20
+        }
+
+        /*
+         * If no season was detected, don't try to guess one.
+         */
+
+        if (requestedSeason == null) {
+            return score
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * Season matching.
+         *
+         * Examples:
+         *
+         * "2nd Season" -> Season 2
+         * "Second Season" -> Season 2
+         * "Season 2" -> Season 2
+         * "S2" -> Season 2
+         * ---------------------------------------------------------
+         */
+
+        val seasonNumber =
+            requestedSeason.toString()
+
+        val seasonMatches =
+            listOf(
+                "season $seasonNumber",
+                "season$seasonNumber",
+                "${seasonNumber}nd season",
+                "${seasonNumber}ndseason",
+                "${seasonNumber}rd season",
+                "${seasonNumber}rdseason",
+                "${seasonNumber}th season",
+                "${seasonNumber}thseason",
+                "s$seasonNumber",
+                "s0$seasonNumber"
+            )
+
+        var hasRequestedSeason = false
+
+        for (pattern in seasonMatches) {
+
+            if (
+                normalizedMalTitle.contains(
+                    pattern
+                )
+            ) {
+                hasRequestedSeason = true
+                break
+            }
+        }
+
+        if (hasRequestedSeason) {
+            score += 100
+        }
+
+        /*
+         * If MAL explicitly looks like another season,
+         * penalize it.
+         */
+
+        val otherSeasonRegex =
+            Regex(
+                "(?:season|s)\\s*([0-9]+)"
+            )
+
+        val seasonMatch =
+            otherSeasonRegex.find(
+                normalizedMalTitle
+            )
+
+        if (seasonMatch != null) {
+
+            val detectedSeason =
+                seasonMatch.groupValues[1]
+                    .toIntOrNull()
+
+            if (
+                detectedSeason != null &&
+                detectedSeason != requestedSeason
+            ) {
+                score -= 100
+            }
+        }
+
+        return score
     }
 
     /*
      * -------------------------------------------------------------
-     * Build body for a brand-new MAL entry.
+     * Build MAL update body.
      * -------------------------------------------------------------
      */
 
-    private fun buildStartBody(
+    private fun buildUpdateBody(
+        status: String,
         episode: Int,
         startDate: String
     ): String {
@@ -370,7 +533,7 @@ object MalApi {
             append(
                 "status=" +
                     URLEncoder.encode(
-                        "watching",
+                        status,
                         "UTF-8"
                     )
             )
@@ -449,10 +612,14 @@ object MalApi {
                 URL(url).openConnection()
                     as HttpURLConnection
 
-            connection.requestMethod = method
+            connection.requestMethod =
+                method
 
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
+            connection.connectTimeout =
+                15000
+
+            connection.readTimeout =
+                15000
 
             connection.setRequestProperty(
                 "Authorization",
@@ -491,7 +658,9 @@ object MalApi {
             val responseBody =
                 stream
                     ?.bufferedReader()
-                    ?.use { it.readText() }
+                    ?.use {
+                        it.readText()
+                    }
                     ?: ""
 
             RequestResult(
@@ -506,7 +675,8 @@ object MalApi {
             RequestResult(
                 success = false,
                 code = -1,
-                body = e.message ?: ""
+                body =
+                    e.message ?: ""
             )
 
         } finally {
