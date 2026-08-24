@@ -153,8 +153,8 @@ object MalApi {
             )
         }
 
-        val updateUrl =
-            "$API_BASE/users/@me/animelist/$animeId"
+val updateUrl =
+    "$API_BASE/anime/$animeId/my_list_status"
 
         val updateResult =
             request(
