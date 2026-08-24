@@ -19,6 +19,7 @@
 
 package org.videolan.vlc
 
+import android.app.AlertDialog
 import android.annotation.TargetApi
 import android.app.KeyguardManager
 import android.app.Notification
@@ -340,22 +341,26 @@ playlistManager.getCurrentMedia()?.let { media ->
             Toast.LENGTH_LONG
         ).show()
 
-        launch {
-val result = MalApi.updateEpisode(
-    this@PlaybackService,
-    parsed.title,
-    parsed.episode,
-    parsed.season
-)
+launch {
+    val result = MalApi.updateEpisode(
+        this@PlaybackService,
+        parsed.title,
+        parsed.episode,
+        parsed.season
+    )
 
-            withContext(Dispatchers.Main) {
-                Toast.makeText(
-                    this@PlaybackService,
-                    result,
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
+    withContext(Dispatchers.Main) {
+        Toast.makeText(
+            this@PlaybackService,
+            result.message,
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    if (result.completed) {
+        showMalScoreDialog(result.animeTitle)
+          }
+       }
     }
 }
                 Log.i(TAG, "MAL SYNC TEST: PLAYING EVENT FIRED")
@@ -408,7 +413,48 @@ val result = MalApi.updateEpisode(
         }
         cbActor.trySend(CbMediaPlayerEvent(event))
     }
+private fun showMalScoreDialog(
+    animeTitle: String
+) {
+    val scores = arrayOf(
+        "1/10",
+        "2/10",
+        "3/10",
+        "4/10",
+        "5/10",
+        "6/10",
+        "7/10",
+        "8/10",
+        "9/10",
+        "10/10"
+    )
 
+    AlertDialog.Builder(this)
+        .setTitle("Finished $animeTitle!")
+        .setMessage("How would you rate this anime?")
+        .setItems(scores) { _, which ->
+
+            val score = which + 1
+
+            launch {
+                val result = MalApi.updateScore(
+                    this@PlaybackService,
+                    animeTitle,
+                    score
+                )
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@PlaybackService,
+                        result,
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+        .setNegativeButton("Not now", null)
+        .show()
+}
     val sessionPendingIntent: PendingIntent
         get() {
             return when {
