@@ -323,94 +323,145 @@ class PlaybackService : MediaBrowserServiceCompat(), LifecycleOwner, CoroutineSc
              */
         }
     }
+private val mediaPlayerListener = MediaPlayer.EventListener { event ->
+    when (event.type) {
+        MediaPlayer.Event.Playing -> {
+            Toast.makeText(
+                this@PlaybackService,
+                "MAL SYNC TEST: PLAYING EVENT FIRED",
+                Toast.LENGTH_LONG
+            ).show()
 
-    private val mediaPlayerListener = MediaPlayer.EventListener { event ->
-        when (event.type) {
-            MediaPlayer.Event.Playing -> {Toast.makeText(
-    this@PlaybackService,
-    "MAL SYNC TEST: PLAYING EVENT FIRED",
-    Toast.LENGTH_LONG
-).show()
-playlistManager.getCurrentMedia()?.let { media ->
-    val parsed = MalSync.parse(media.title)
+            playlistManager.getCurrentMedia()?.let { media ->
+                val parsed = MalSync.parse(media.title)
 
-    if (parsed != null) {
-        Toast.makeText(
-            this@PlaybackService,
-            "MAL SYNC: ${parsed.title} S${parsed.season ?: "?"}E${parsed.episode}",
-            Toast.LENGTH_LONG
-        ).show()
-    launch {
-    val result = MalApi.updateEpisode(
-        this@PlaybackService,
-        parsed.title,
-        parsed.episode,
-        parsed.season
-    )
+                if (parsed != null) {
+                    Toast.makeText(
+                        this@PlaybackService,
+                        "MAL SYNC: ${parsed.title} S${parsed.season ?: "?"}E${parsed.episode}",
+                        Toast.LENGTH_LONG
+                    ).show()
 
-    withContext(Dispatchers.Main) {
-        Toast.makeText(
-            this@PlaybackService,
-            result.message,
-            Toast.LENGTH_LONG
-        ).show()
+                    launch {
+                        val result = MalApi.updateEpisode(
+                            this@PlaybackService,
+                            parsed.title,
+                            parsed.episode,
+                            parsed.season
+                        )
 
-        if (result.completed) {
-            showMalScoreDialog(result.animeTitle)
-         }
-      }
-   }
-}
-                Log.i(TAG, "MAL SYNC TEST: PLAYING EVENT FIRED")
-                executeUpdate(true)
-                lastTime = getTime()
-                audioFocusHelper.changeAudioFocus(true)
-                if (!wakeLock.isHeld) wakeLock.acquire()
-                showNotification()
-                nbErrors = 0
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    NetworkConnectionManager.isMetered.value?.let {
-                        checkMetered(it)
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                this@PlaybackService,
+                                result.message,
+                                Toast.LENGTH_LONG
+                            ).show()
+
+                            if (result.completed) {
+                                showMalScoreDialog(result.animeTitle)
+                            }
+                        }
                     }
                 }
             }
-            MediaPlayer.Event.Paused -> {
-                if (BuildConfig.DEBUG) Log.i(TAG, "MediaPlayer.Event.Paused")
-                executeUpdate(true)
-                showNotification()
-                if (wakeLock.isHeld) wakeLock.release()
-            }
-            MediaPlayer.Event.EncounteredError -> executeUpdate()
-            MediaPlayer.Event.LengthChanged -> {
-                lastChaptersCount = getChapters(-1)?.size ?: 0
-                if (lastLength == 0L) {
-                    executeUpdate(true)
+
+            Log.i(TAG, "MAL SYNC TEST: PLAYING EVENT FIRED")
+            executeUpdate(true)
+            lastTime = getTime()
+            audioFocusHelper.changeAudioFocus(true)
+
+            if (!wakeLock.isHeld) wakeLock.acquire()
+
+            showNotification()
+            nbErrors = 0
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                NetworkConnectionManager.isMetered.value?.let {
+                    checkMetered(it)
                 }
-            }
-            MediaPlayer.Event.PositionChanged -> {
-                if (length == 0L) position = (NO_LENGTH_PROGRESS_MAX.toLong() * event.positionChanged).toLong()
-                if (getTime() < 1000L && getTime() < lastTime) publishState()
-                lastTime = getTime()
-                if (widget != 0) updateWidgetPosition(event.positionChanged)
-                val curChapter = chapterIdx
-                if (lastChapter != curChapter) {
-                    executeUpdate()
-                    showNotification()
-                }
-                lastChapter = curChapter
-            }
-            MediaPlayer.Event.ESAdded -> if (event.esChangedType == IMedia.Track.Type.Video && (playlistManager.videoBackground || !playlistManager.switchToVideo())) {
-                /* CbAction notification content intent: resume video or resume audio activity */
-                updateMetadata()
-            }
-            MediaPlayer.Event.MediaChanged -> if (BuildConfig.DEBUG) Log.d(TAG, "onEvent: MediaChanged")
-            MediaPlayer.Event.EndReached -> {
-                mediaEndReached = true
-                playQueueFinished = !playlistManager.hasNext() || playlistManager.stopAfter == currentMediaPosition
             }
         }
-        cbActor.trySend(CbMediaPlayerEvent(event))
+
+        MediaPlayer.Event.Paused -> {
+            if (BuildConfig.DEBUG) {
+                Log.i(TAG, "MediaPlayer.Event.Paused")
+            }
+
+            executeUpdate(true)
+            showNotification()
+
+            if (wakeLock.isHeld) {
+                wakeLock.release()
+            }
+        }
+
+        MediaPlayer.Event.EncounteredError -> executeUpdate()
+
+        MediaPlayer.Event.LengthChanged -> {
+            lastChaptersCount = getChapters(-1)?.size ?: 0
+
+            if (lastLength == 0L) {
+                executeUpdate(true)
+            }
+        }
+
+        MediaPlayer.Event.PositionChanged -> {
+            if (length == 0L) {
+                position =
+                    (NO_LENGTH_PROGRESS_MAX.toLong() *
+                        event.positionChanged).toLong()
+            }
+
+            if (getTime() < 1000L && getTime() < lastTime) {
+                publishState()
+            }
+
+            lastTime = getTime()
+
+            if (widget != 0) {
+                updateWidgetPosition(event.positionChanged)
+            }
+
+            val curChapter = chapterIdx
+
+            if (lastChapter != curChapter) {
+                executeUpdate()
+                showNotification()
+            }
+
+            lastChapter = curChapter
+        }
+
+        MediaPlayer.Event.ESAdded -> {
+            if (
+                event.esChangedType == IMedia.Track.Type.Video &&
+                (
+                    playlistManager.videoBackground ||
+                    !playlistManager.switchToVideo()
+                )
+            ) {
+                updateMetadata()
+            }
+        }
+
+        MediaPlayer.Event.MediaChanged -> {
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "onEvent: MediaChanged")
+            }
+        }
+
+        MediaPlayer.Event.EndReached -> {
+            mediaEndReached = true
+
+            playQueueFinished =
+                !playlistManager.hasNext() ||
+                    playlistManager.stopAfter == currentMediaPosition
+        }
     }
+
+    cbActor.trySend(CbMediaPlayerEvent(event))
+}
+
 private fun showMalScoreDialog(
     animeTitle: String
 ) {
