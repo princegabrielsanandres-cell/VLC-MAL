@@ -98,58 +98,64 @@ object MalApi {
 
         var bestListScore = Int.MIN_VALUE
 
-        if (userData != null) {
-            for (i in 0 until userData.length()) {
+if (userData != null) {
+    for (i in 0 until userData.length()) {
 
-                val item = userData.optJSONObject(i) ?: continue
-                val node = item.optJSONObject("node") ?: continue
+        val item = userData.optJSONObject(i) ?: continue
+        val node = item.optJSONObject("node") ?: continue
 
-                val candidateId = node.optInt("id", 0)
-                val candidateTitle = node.optString("title", "")
+        val candidateId = node.optInt("id", 0)
+        val candidateTitle = node.optString("title", "")
 
-                if (
-                    candidateId == 0 ||
-                    candidateTitle.isEmpty()
-                ) continue
+        if (
+            candidateId == 0 ||
+            candidateTitle.isEmpty()
+        ) continue
 
-                val candidateScore = calculateSeasonMatchScore(
-                    normalizedTitle,
-                    candidateTitle,
-                    season
-                )
+        val candidateScore = calculateSeasonMatchScore(
+            normalizedTitle,
+            candidateTitle,
+            season
+        )
 
-                if (candidateScore <= bestListScore) continue
+        if (candidateScore <= bestListScore) continue
 
-                bestListScore = candidateScore
-                animeId = candidateId
-                matchedTitle = candidateTitle
-                totalEpisodes = node.optInt("num_episodes", 0)
+        val listStatus = item.optJSONObject("list_status")
+            ?: continue
 
-                val listStatus = item.optJSONObject("list_status")
+        /*
+         * IMPORTANT:
+         * Only select an entry if it actually has a list_status.
+         * This prevents MAL search results without a real list
+         * entry from becoming the tracked anime.
+         */
 
-                if (listStatus != null) {
-                    currentEpisode = listStatus.optInt(
-                        "num_episodes_watched",
-                        0
-                    )
+        bestListScore = candidateScore
+        animeId = candidateId
+        matchedTitle = candidateTitle
+        totalEpisodes = node.optInt("num_episodes", 0)
 
-                    currentStatus = listStatus.optString(
-                        "status",
-                        ""
-                    )
+        currentEpisode = listStatus.optInt(
+            "num_episodes_watched",
+            0
+        )
 
-                    currentStartDate = listStatus.optString(
-                        "start_date",
-                        ""
-                    )
+        currentStatus = listStatus.optString(
+            "status",
+            ""
+        )
 
-                    currentFinishDate = listStatus.optString(
-                        "finish_date",
-                        ""
-                    )
-                }
-            }
-        }
+        currentStartDate = listStatus.optString(
+            "start_date",
+            ""
+        )
+
+        currentFinishDate = listStatus.optString(
+            "finish_date",
+            ""
+        )
+    }
+}
 
         val foundInList = animeId != 0
 
